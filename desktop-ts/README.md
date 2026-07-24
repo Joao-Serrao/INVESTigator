@@ -51,13 +51,20 @@ npm run tauri dev      # run the app
 npm run tauri build    # produce the NSIS + MSI installers
 ```
 
-## Verified vs. not
+## Build status
 
-- **Verified here:** `adapter.ts` + `main.ts` typecheck against the real plugin APIs;
-  `build.mjs` bundles the whole engine browser-clean (no Node-only import leaks); the
-  engine's service layer matches the Python API byte-for-byte (`npm run service-parity`
-  in `../engine`).
-- **Builds on your machine:** `tauri dev` / `tauri build` need Rust + WebView2, so the
-  `src-tauri` Rust (plugin registration, `send_email`, `sync_schedules`) compiles and
-  runs there. `send_email` and `sync_schedules` are the pieces most worth exercising
-  first — the rest of the app is the already-verified TypeScript engine.
+`npm run tauri build` was run end to end on Windows (Rust 1.96, MSVC): the release
+binary links and both installers are produced —
+
+```
+target/release/investigator.exe                          (~20 MB)
+target/release/bundle/nsis/INVESTigator_0.1.0_x64-setup.exe
+target/release/bundle/msi/INVESTigator_0.1.0_x64_en-US.msi
+```
+
+So the whole stack compiles: the four plugins, the bundled SQLite backend, and the
+Rust commands (`send_email`, `sync_schedules`). What's still worth exercising by hand
+on a real machine is *runtime* behaviour — first launch reading your existing
+`%APPDATA%\Investraton\` data, a digest run, and `send_email` against a real SMTP
+server. The rest of the app is the TypeScript engine the parity harnesses already
+verify. `sync_schedules` is a no-op stub until the Stage 6 OS-scheduling wiring.

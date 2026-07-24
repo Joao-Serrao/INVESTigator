@@ -20,8 +20,15 @@ struct SmtpConfig {
 
 /// Send one email over SMTP+STARTTLS. Mirrors deliver/email.py: sender defaults to
 /// the login user, recipient to the sender, and app-password spaces are stripped.
+/// The blocking transport runs off the async runtime so it never stalls the UI.
 #[tauri::command]
 async fn send_email(cfg: SmtpConfig, subject: String, body: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || send_email_blocking(cfg, subject, body))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn send_email_blocking(cfg: SmtpConfig, subject: String, body: String) -> Result<(), String> {
     use lettre::transport::smtp::authentication::Credentials;
     use lettre::{Message, SmtpTransport, Transport};
 

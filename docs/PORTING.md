@@ -209,11 +209,14 @@ the engine where it used to `fetch('/api/...')`. `app.js` now uses the bridge wh
 `fetch` otherwise, so one UI serves both the Python dev server and the native app. Rust does only
 what a WebView can't: SMTP email (`lettre`) and OS scheduling (deferred to Stage 6).
 
-Verified here: the adapter + bootstrap **typecheck against the real plugin APIs**, and `build.mjs`
+Verified: the adapter + bootstrap **typecheck against the real plugin APIs**, `build.mjs`
 **bundles the whole engine browser-clean** (esbuild would fail if any Node-only import leaked in —
-it doesn't). The `tauri build` itself needs Rust + WebView2, so it runs on the target machine; the
-app it produces reads the **same `%APPDATA%\Investraton\` data and DB** as the Python build, which is
-exactly what service-parity proves is safe. Python retires once the built app is exercised there.
+it doesn't), and **`npm run tauri build` runs end to end on Windows** (Rust 1.96 / MSVC) — the four
+plugins, the bundled SQLite backend, and the Rust `send_email`/`sync_schedules` commands all compile,
+and it produces `investigator.exe` plus the NSIS and MSI installers. The app reads the **same
+`%APPDATA%\Investraton\` data and DB** as the Python build, which service-parity proves is safe.
+What remains is runtime shakedown on a real machine (first launch on existing data, a live digest,
+SMTP send); Python retires after that.
 
 **Stage 6 — Android.** Delivery keeps email/Discord and gains native notifications (which work
 fully offline — only *fetching* needs the network). AI is **Template or Claude-with-your-key** —

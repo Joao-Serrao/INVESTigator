@@ -23,4 +23,5 @@ tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-http = "2"
 tauri-plugin-opener = "2"
 # Email delivery: SMTP from Rust (the WebView can't open a TLS socket itself).
-lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "rustls-tls", "builder"] }
+# Default features use native-tls -> schannel on Windows, so no extra C/TLS toolchain.
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "native-tls", "builder", "hostname"] }
