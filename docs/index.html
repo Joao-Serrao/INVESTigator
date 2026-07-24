@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>INVESTigator — personal investment intelligence</title>
+<meta name="description" content="A desktop app that decodes what's really inside your ETFs and sends you a calm, noise-filtered briefing. Never buy/sell advice." />
+<link rel="icon" href="../desktop/src-tauri/icons/32x32.png" />
+<style>
+  :root{--bg:#0e1116;--bg2:#151a22;--line:#2a323d;--text:#e6edf3;--muted:#8b97a7;--blue:#4f8cff;--teal:#2dd4a7}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,"Segoe UI",Roboto,Inter,system-ui,sans-serif;line-height:1.6}
+  a{color:var(--blue)}
+  .wrap{max-width:940px;margin:0 auto;padding:0 22px}
+  header{text-align:center;padding:76px 0 54px}
+  header img{width:104px;height:104px}
+  h1{font-size:clamp(38px,7vw,60px);margin:16px 0 8px;letter-spacing:-1.5px}
+  .tag{color:var(--muted);font-size:clamp(16px,2.4vw,19px);max-width:640px;margin:0 auto}
+  .grad{background:linear-gradient(90deg,var(--blue),var(--teal));-webkit-background-clip:text;
+    background-clip:text;color:transparent}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:30px}
+  .btn{display:inline-block;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;
+    border:1px solid var(--line);color:var(--text);background:var(--bg2);transition:.15s}
+  .btn:hover{border-color:var(--blue);transform:translateY(-1px)}
+  .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  .btn.coffee{background:#FFDD00;border-color:#FFDD00;color:#111}
+  .note{color:var(--muted);font-size:13px;margin-top:14px}
+  section{padding:44px 0;border-top:1px solid var(--line)}
+  h2{font-size:24px;margin:0 0 20px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}
+  .card{background:var(--bg2);border:1px solid var(--line);border-radius:13px;padding:18px 20px}
+  .card h3{margin:0 0 6px;font-size:15.5px}
+  .card p{margin:0;color:var(--muted);font-size:14px}
+  .principles li{color:var(--muted);margin:9px 0}
+  .principles b{color:var(--text)}
+  pre{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+    overflow-x:auto;font-size:13px}
+  .disc{background:rgba(255,184,77,.07);border:1px solid rgba(255,184,77,.35);border-radius:11px;
+    padding:16px 18px;color:var(--muted);font-size:14px}
+  footer{border-top:1px solid var(--line);padding:30px 0 60px;color:var(--muted);font-size:13.5px;
+    display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <img src="../desktop/src-tauri/icons/128x128.png" alt="INVESTigator icon" />
+    <h1>INVEST<span class="grad">igator</span></h1>
+    <p class="tag">A personal investment intelligence desktop app — a <b>context amplifier</b> for your
+      own thinking, not a trading assistant. It never tells you to buy or sell.</p>
+    <div class="cta">
+      <a class="btn primary" href="../../releases">Download for Windows</a>
+      <a class="btn" href="https://github.com/Joao-Serrao/INVESTigator">View on GitHub</a>
+      <a class="btn coffee" href="https://buymeacoffee.com/joao.serrao">☕ Buy me a coffee</a>
+    </div>
+    <p class="note">Free &amp; open source · MIT · your data never leaves your machine</p>
+  </header>
+
+  <section>
+    <h2>What it actually does</h2>
+    <div class="grid">
+      <div class="card"><h3>🔍 ETF look-through</h3><p>Decodes your ETFs into their real holdings, so you
+        see your true company exposure — not what the ticker list implies.</p></div>
+      <div class="card"><h3>🎯 Hidden concentration</h3><p>Finds names you hold both directly and inside
+        funds, plus overlap between ETFs that quietly hold the same companies.</p></div>
+      <div class="card"><h3>🌍 Region &amp; sector tilt</h3><p>Grouped into blocs — Europe, Emerging Asia,
+        North America — because a regional event hits every name in it.</p></div>
+      <div class="card"><h3>📰 Noise-filtered news</h3><p>Only material items, scored by how much they touch
+        <em>your</em> capital, deduplicated and capped so one busy stock can't flood the digest.</p></div>
+      <div class="card"><h3>🧭 Plan drift</h3><p>Your real allocation versus the targets you set, so you know
+        where the next contribution is needed.</p></div>
+      <div class="card"><h3>⏰ Automatic digests</h3><p>Multiple schedules with their own frequency, depth and
+        focus. Delivered to console, Discord or email. Missed runs fire on next power-on.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The rules it plays by</h2>
+    <ul class="principles">
+      <li><b>Numbers in code, prose in the AI.</b> The model never does arithmetic on your portfolio.</li>
+      <li><b>No raw alerts.</b> Every item explains why it matters <em>to you</em>.</li>
+      <li><b>Never optimize for action pressure.</b> No buy/sell/hold, ever.</li>
+      <li><b>Honest data.</b> Freshness and coverage are labelled; what can't be decoded is shown as such.</li>
+      <li><b>Local and private.</b> Holdings stay on your machine. AI is optional and can run fully offline.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Get started</h2>
+    <p style="color:var(--muted)">Install, add what you own (just a ticker is enough), and hit
+      <em>Run digest</em>. Everything else is optional.</p>
+    <pre># or run from source
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[app]"
+.\.venv\Scripts\python.exe -m investraton app</pre>
+    <p style="color:var(--muted);font-size:14px">All data sources are free and public: yfinance for prices,
+      Google News &amp; Yahoo RSS for news, and iShares' daily holdings files for ETF look-through.</p>
+  </section>
+
+  <section>
+    <h2>Disclaimer</h2>
+    <div class="disc">INVESTigator is an information tool, <b>not financial advice</b>. It deliberately never
+      recommends buying, selling or holding anything. Data comes from free public sources and may be delayed,
+      incomplete or wrong. Always verify with your broker before making decisions — you are responsible for
+      your own money.</div>
+  </section>
+
+  <footer>
+    <div>MIT © João Serrão</div>
+    <div>
+      <a href="https://github.com/Joao-Serrao/INVESTigator">GitHub</a> ·
+      <a href="../LICENSE">License</a> ·
+      <a href="https://buymeacoffee.com/joao.serrao">Buy me a coffee</a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

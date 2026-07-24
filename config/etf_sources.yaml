@@ -1,0 +1,47 @@
+# ETF holdings sources for look-through exposure (free, public).
+#
+# iShares (BlackRock) publishes daily FULL holdings as CSV, addressed only by the
+# numeric product id (the URL slug is ignored). We resolve a holding to a product
+# by its ticker (any listing alias) or ISIN, then fetch + cache the CSV.
+#
+# To add an iShares ETF: find its product id from the ishares.com product page URL
+# (.../products/<ID>/...), then add an entry with its ISIN and the tickers you use.
+# Other issuers (Vanguard, Xtrackers/DWS, Amundi) have no equally clean free feed —
+# drop a manual composition file at data/etf_holdings/<TICKER>.json for those.
+
+ishares:
+  - product_id: "251882"
+    isin: IE00B4L5Y983
+    name: iShares Core MSCI World
+    aliases: [IWDA, SWDA, EUNL]
+  - product_id: "253743"
+    isin: IE00B5BMR087
+    name: iShares Core S&P 500
+    aliases: [CSPX, SXR8, CSSPX, SXR8]
+  - product_id: "264659"
+    isin: IE00BKM4GZ66
+    name: iShares Core MSCI EM IMI
+    aliases: [EIMI, IS3N, EMIM]
+  - product_id: "251861"
+    isin: IE00B4K48X80
+    name: iShares Core MSCI Europe
+    aliases: [IMAE, SMEA, IMEA, CEU]
+  - product_id: "340748"
+    isin: IE000R4ZNTN3
+    name: iShares MSCI World ex-USA
+    aliases: [XUSE]
+
+# Non-iShares ETFs that track the SAME index as an iShares fund. iShares has no clean
+# free holdings feed for Xtrackers/Amundi/Vanguard etc., but for an INDEX ETF the
+# look-through is the index's constituents — so we use the matching iShares fund's
+# holdings as a proxy (same index = same underlying exposure, within tracking error).
+# This is labelled in the UI so it's transparent.
+index_proxies:
+  - aliases: [EXUS, XMWX]          # Xtrackers MSCI World ex USA UCITS ETF
+    isin: IE0006WW1TQ4
+    proxy_product_id: "340748"     # -> iShares MSCI World ex-USA (MSCI World ex USA index)
+    name: Xtrackers MSCI World ex USA (via MSCI World ex USA index)
+
+settings:
+  max_age_days: 7
+  url_template: "https://www.ishares.com/uk/individual/en/products/{pid}/x/1506575576011.ajax?fileType=csv&fileName=holdings&dataType=fund"

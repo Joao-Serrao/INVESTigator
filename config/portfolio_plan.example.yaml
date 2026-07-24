@@ -1,0 +1,27 @@
+# Your investment plan + profile. Copy to portfolio_plan.yaml and edit.
+# This is the "plan layer" the engine uses to judge relevance — is an event noise,
+# or does it touch capital you actually intend to deploy?
+
+profile:
+  country: Portugal
+  currency: EUR
+  tax_residency: PT
+  allowed_markets: [US, EU]
+  excluded_markets: []
+
+plan:
+  monthly_contribution_eur: 1000
+  allocation_targets:        # fractions, should sum to ~1.0
+    etf: 0.80
+    growth_stock: 0.15
+    experimental: 0.05
+  watchlist:                 # things you're considering but don't own yet
+    - NVDA
+    - MSFT
+    - clean_energy_theme
+
+# Thresholds the engine uses for severity gating (tune to taste).
+thresholds:
+  price_move_pct: 3.0        # ignore daily moves smaller than this (abs %)
+  min_urgency_to_report: 2.0 # items below this score don't make the digest
+  news_lookback_days: 7

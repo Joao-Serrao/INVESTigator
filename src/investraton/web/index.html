@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>INVESTigator</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">◢◣</div>
+        <div class="brand-name">INVESTigator</div>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="dashboard"><span>📊</span> Dashboard</button>
+        <button class="nav-item" data-view="holdings"><span>💼</span> Holdings</button>
+        <button class="nav-item" data-view="plan"><span>🧭</span> Plan</button>
+        <button class="nav-item" data-view="schedules"><span>⏰</span> Schedules</button>
+        <button class="nav-item" data-view="history"><span>🕘</span> History</button>
+        <button class="nav-item" data-view="settings"><span>⚙️</span> Settings</button>
+        <button class="nav-item" data-view="guide"><span>📖</span> Guide</button>
+      </nav>
+      <div class="sidebar-foot" id="status-foot">
+        <div class="muted small">Loading status…</div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <h1 id="view-title">Dashboard</h1>
+        <div class="topbar-actions" id="topbar-actions"></div>
+      </header>
+      <section id="view" class="view"></section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <div id="poptip" class="poptip"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

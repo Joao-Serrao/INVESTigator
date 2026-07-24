@@ -1,0 +1,6 @@
+ticker,name,type,amount_invested_eur,avg_cost,strategy_tag
+IWDA.AS,iShares Core MSCI World,etf,5000,88.50,core
+CSPX.L,iShares Core S&P 500,etf,3000,540.00,core
+AAPL,Apple Inc,growth_stock,2000,170.00,growth
+NVDA,NVIDIA Corp,growth_stock,1500,90.00,growth
+TSLA,Tesla Inc,experimental,800,210.00,speculative

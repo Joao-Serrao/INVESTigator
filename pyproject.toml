@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "investraton"
+version = "0.1.0"
+description = "A personal investment intelligence engine — a context amplifier, not a trading assistant."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=6.0",
+    "requests>=2.31",
+    "yfinance>=0.2.40",
+    "feedparser>=6.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+app = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
+
+[project.scripts]
+investraton = "investraton.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+investraton = ["web/*"]
