@@ -91,6 +91,31 @@ export interface Subject {
   type: string;
 }
 
+/** Per-channel delivery outcome (mirrors deliver.deliver()'s report entries). */
+export interface DeliveryResult {
+  channel: string;
+  ok: boolean;
+  error?: string;
+}
+
+export interface Digest {
+  /** the run's timestamp; serialised via .isoformat() on the Python side */
+  generated_at: Date;
+  period: string;
+  events: DigestEvent[];
+  portfolio_total_eur: number;
+  data_freshness: string;
+  amounts_provided: boolean;
+  structure: Finding[];
+  watchlist: DigestEvent[];
+  delivery_report: DeliveryResult[];
+  narrative: string;
+}
+
+/** Event.dedup_key — `TICKER|kind|(url or headline lowercased)`. */
+export const eventDedupKey = (e: DigestEvent): string =>
+  `${e.ticker.toUpperCase()}|${e.kind}|${(e.url || e.headline).trim().toLowerCase()}`;
+
 export interface Thresholds {
   price_move_pct: number;
   min_urgency_to_report: number;

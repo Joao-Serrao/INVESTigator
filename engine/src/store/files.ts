@@ -156,6 +156,12 @@ export async function loadPlan(fs: FileSystem, p: Paths): Promise<Plan> {
   return parsePlan(text ?? "");
 }
 
+/** Write the user plan — matches config.save_plan(). */
+export async function savePlan(fs: FileSystem, p: Paths, plan: Plan): Promise<void> {
+  await fs.mkdirp(configDir(p, fs));
+  await fs.writeText(fs.join(configDir(p, fs), "portfolio_plan.yaml"), serializePlan(plan));
+}
+
 // ------------------------------------------------------------ settings & schedules
 export async function loadAppSettings(fs: FileSystem, p: Paths): Promise<Record<string, any>> {
   const text = await fs.readText(fs.join(configDir(p, fs), "app_settings.json"));

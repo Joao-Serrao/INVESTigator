@@ -133,8 +133,53 @@ text* (tags stripped, entities decoded, whitespace collapsed) rather than the ra
 The suite was verified against planted errors — 3 mutations in the fixture produced exactly 3
 failures and a non-zero exit, so a green run is not a vacuous one.
 
-**Stage 4 — UI.** Largely unchanged: it already speaks to a small API surface, which becomes local
-TS calls instead of `fetch('/api/...')`.
+**Stage 4 — application layer. ✅ DONE.** The orchestration that ties Stages 1–3 together, plus the
+API surface the UI calls:
+
+| Module | Ports | Notes |
+|---|---|---|
+| `src/pipeline.ts` | `pipeline.run_digest` / `analyse_structure` / `serialize_digest` | ingest → score → dedup → structure → narrate → deliver |
+| `src/brain/narrative.ts` | `brain/narrative.py` | deterministic template body; LLM only adds a qualitative line |
+| `src/brain/llm.ts` | `brain/llm.py` | Template / Ollama / Claude, all HTTP through `HttpClient` |
+| `src/deliver.ts` | `deliver/*.py` | console + Discord here; email SMTP injected per-platform |
+| `src/config.ts` | settings half of `config.py` | defaults + `app_settings.json` (no `.env` — a dev-only Python path) |
+| `src/app/service.ts` | every `api.py` endpoint | the "local TS calls instead of `fetch('/api/...')`" surface |
+
+Two design choices make this port testable and portable:
+
+- **Ingestion is injected.** `runDigest` takes an `IngestFns` bundle (prices / news / compositions)
+  that defaults to the real Stage-3 fetchers but can be stubbed — which is what makes an offline,
+  deterministic end-to-end parity test possible.
+- **I/O is behind interfaces.** Delivery transports (`EmailSender`, the console sink) and the
+  schedule-sync hook are injected through the context, so the same pipeline runs under Node,
+  desktop Tauri, and Android — only the adapters differ. Windows Task Scheduler / Android
+  AlarmManager wiring is deferred to its platform (Stage 6); the service does the data-level
+  schedule CRUD and calls the injected sync hook.
+
+A subtle bug the port surfaced: the narrative interpolates a raw `urgency` float, and Python's
+`str(8.0)` is `"8.0"` where JS's `String(8)` is `"8"`. Added `pyFloatStr` so whole-number urgencies
+keep their trailing `.0` — otherwise the narrative would silently diverge on any integer score.
+
+*Parity here is end-to-end.* `make_pipeline_fixtures.py` runs Python `run_digest` on fixed inputs
+with stubbed ingestion across five scenarios (varying focus, complexity, and period to exercise
+thresholds, per-subject caps, structure on/off, watchlist on/off, and the empty-digest branch), and
+captures `serialize_digest`. `pipeline-parity.ts` feeds the TS engine the same inputs and asserts
+equality — numbers within a relative epsilon, **everything else (including the entire narrative
+string) exactly**.
+
+```powershell
+python engine\test\make_pipeline_fixtures.py
+cd engine && npm run pipeline-parity
+```
+
+Result: **450 comparisons, 0 mismatches** — one run of the whole loop (scoping → scoring →
+threshold/dedup → caps → look-through/concentration/plan → narrative → serialize) agrees down to
+the byte. Verified against planted errors: mutating a freshness label, a narrative word, and one
+urgency produced exactly three failures.
+
+The **UI wiring itself** (binding the existing vanilla-JS front-end to `app/service.ts` through the
+Tauri bridge) lands with the desktop shell in Stage 5, since it needs the Tauri adapters
+(`tauri-plugin-fs` / `-sql` / `-http`) that `service.ts` is written against.
 
 **Stage 5 — desktop parity.** Ship the TS build on Windows and run it beside the Python one on the
 same data until they agree. Python retires only after that.

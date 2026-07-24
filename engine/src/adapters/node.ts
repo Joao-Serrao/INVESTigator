@@ -33,6 +33,33 @@ export const nodeHttp: HttpClient = {
       return null;
     }
   },
+  async postJson<T = unknown>(
+    url: string, body: unknown, headers: Record<string, string> = {},
+  ) {
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "User-Agent": UA, "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) return null;
+      return (await r.json()) as T;
+    } catch {
+      return null;
+    }
+  },
+  async post(url: string, body: unknown, headers: Record<string, string> = {}) {
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "User-Agent": UA, "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      });
+      return { ok: r.ok, status: r.status, text: await r.text() };
+    } catch (e) {
+      return { ok: false, status: 0, text: String(e) };
+    }
+  },
 };
 
 export const nodeFs: FileSystem = {

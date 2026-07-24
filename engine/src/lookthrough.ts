@@ -23,7 +23,7 @@ export interface LookThrough {
 /** Strip an exchange suffix: IWDA.AS -> IWDA */
 export const baseTicker = (t: string): string => t.toUpperCase().split(".")[0];
 
-const isEtf = (h: Holding): boolean => h.type.toLowerCase() === "etf";
+export const isEtf = (h: Holding): boolean => h.type.toLowerCase() === "etf";
 
 /** Disambiguate same-ticker-different-market collisions (e.g. "2330"). */
 const nameKey = (ticker: string, country: string): string =>

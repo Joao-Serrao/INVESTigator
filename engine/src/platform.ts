@@ -18,9 +18,24 @@ export interface FileSystem {
  * iShares directly — CORS blocks it. Tauri's HTTP plugin performs requests
  * natively (no CORS), and Node uses global fetch for the parity harness.
  */
+export interface HttpResponse {
+  ok: boolean;
+  status: number;
+  text: string;
+}
+
 export interface HttpClient {
   getText(url: string, headers?: Record<string, string>): Promise<string | null>;
   getJson<T = unknown>(url: string, headers?: Record<string, string>): Promise<T | null>;
+  /** POST a JSON body, returning the parsed JSON response or null on failure.
+   * Used by the LLM providers, which just want the payload back (or nothing). */
+  postJson<T = unknown>(
+    url: string, body: unknown, headers?: Record<string, string>,
+  ): Promise<T | null>;
+  /** POST a JSON body, returning the raw outcome. Never throws — delivery uses
+   * `ok`/`status` to build its per-channel report (a webhook 204 is success with
+   * an empty body, which postJson can't distinguish from failure). */
+  post(url: string, body: unknown, headers?: Record<string, string>): Promise<HttpResponse>;
 }
 
 export const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";

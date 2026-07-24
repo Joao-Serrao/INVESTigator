@@ -33,3 +33,15 @@ export function pyFormat(x: number, digits: number): string {
 export function pyThousands(x: number): string {
   return pyRound(x, 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 }
+
+/** Equivalent of Python's str(float): whole values keep a trailing ".0"
+ * (str(8.0) == "8.0"), everything else uses the shortest round-tripping repr,
+ * which JS's String() already produces the same way. Used where the narrative
+ * interpolates a raw float (e.g. "Urgency 8.0/10"). */
+export function pyFloatStr(x: number): string {
+  if (!Number.isFinite(x)) {
+    if (Number.isNaN(x)) return "nan";
+    return x > 0 ? "inf" : "-inf";
+  }
+  return Number.isInteger(x) ? `${x}.0` : String(x);
+}

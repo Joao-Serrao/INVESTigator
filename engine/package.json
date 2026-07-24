@@ -8,6 +8,7 @@
     "parity": "node --experimental-strip-types test/parity.ts",
     "storage-parity": "node --experimental-strip-types test/storage-parity.ts",
     "ingest-parity": "node --experimental-strip-types test/ingest-parity.ts",
+    "pipeline-parity": "node --experimental-strip-types test/pipeline-parity.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
