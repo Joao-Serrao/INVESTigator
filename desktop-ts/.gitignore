@@ -1,0 +1,10 @@
+# deps
+node_modules/
+package-lock.json
+
+# generated frontend (assembled by build.mjs from ../src/investraton/web + the engine)
+web/
+
+# rust / tauri build artifacts
+src-tauri/target/
+src-tauri/gen/

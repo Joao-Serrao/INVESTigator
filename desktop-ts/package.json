@@ -1,0 +1,25 @@
+{
+  "name": "@investigator/desktop-ts",
+  "version": "0.1.0",
+  "description": "INVESTigator desktop shell — Tauri + the TypeScript engine (no Python sidecar).",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "bundle": "node build.mjs",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@investigator/engine": "file:../engine",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-fs": "^2.5.1",
+    "@tauri-apps/plugin-http": "^2.5.9",
+    "@tauri-apps/plugin-opener": "^2.5.4",
+    "@tauri-apps/plugin-sql": "^2.4.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.4.0",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.9.3"
+  }
+}

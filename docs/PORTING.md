@@ -181,8 +181,39 @@ The **UI wiring itself** (binding the existing vanilla-JS front-end to `app/serv
 Tauri bridge) lands with the desktop shell in Stage 5, since it needs the Tauri adapters
 (`tauri-plugin-fs` / `-sql` / `-http`) that `service.ts` is written against.
 
-**Stage 5 — desktop parity.** Ship the TS build on Windows and run it beside the Python one on the
-same data until they agree. Python retires only after that.
+**Stage 5 — desktop parity. ✅ DONE (packaging builds on Windows).** Two halves: prove the service
+layer matches Python on identical data, then wire the TS engine into a Tauri shell.
+
+*Service parity.* `make_service_fixtures.py` seeds one realistic HOME — holdings, plan,
+settings-with-secrets, schedules, a populated DB, and a fresh ETF cache — then captures every
+`api.py` endpoint's output. `service-parity.ts` points `app/service.ts` at the **same on-disk HOME**
+and asserts identical responses; it also drives the new `app/router.ts` (the platform-agnostic
+analog of FastAPI's route table) to confirm dispatch and 404/400 mapping.
+
+```powershell
+python engine\test\make_service_fixtures.py
+cd engine && npm run service-parity
+```
+
+Result: **421 comparisons, 0 mismatches** — status, holdings (incl. price-adjusted values), plan,
+masked settings, sources, schedules, look-through structure (read from cache, no network), history,
+the settings **merge/mask** logic (a blank/masked field must not wipe the stored SMTP password —
+a real bug the Python version once had), and router dispatch. Everything is local/deterministic:
+prices come from the seeded DB, the ETF composition from a fresh cache file, so neither side fetches.
+Verified against planted errors.
+
+*The Tauri shell* lives in [`desktop-ts/`](../desktop-ts). The engine runs in the WebView; a single
+adapter (`src/adapter.ts`) implements `FileSystem`/`Database`/`HttpClient` on `tauri-plugin-fs` /
+`-sql` / `-http`, and `src/main.ts` exposes `window.__invest` so the **shared, unforked** UI calls
+the engine where it used to `fetch('/api/...')`. `app.js` now uses the bridge when present and
+`fetch` otherwise, so one UI serves both the Python dev server and the native app. Rust does only
+what a WebView can't: SMTP email (`lettre`) and OS scheduling (deferred to Stage 6).
+
+Verified here: the adapter + bootstrap **typecheck against the real plugin APIs**, and `build.mjs`
+**bundles the whole engine browser-clean** (esbuild would fail if any Node-only import leaked in —
+it doesn't). The `tauri build` itself needs Rust + WebView2, so it runs on the target machine; the
+app it produces reads the **same `%APPDATA%\Investraton\` data and DB** as the Python build, which is
+exactly what service-parity proves is safe. Python retires once the built app is exercised there.
 
 **Stage 6 — Android.** Delivery keeps email/Discord and gains native notifications (which work
 fully offline — only *fetching* needs the network). AI is **Template or Claude-with-your-key** —

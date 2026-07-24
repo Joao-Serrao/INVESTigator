@@ -16,7 +16,9 @@ import { loadSettings } from "../config.ts";
 import { getLlm } from "../brain/llm.ts";
 import type { DeliverContext } from "../deliver.ts";
 import { sendTestEmail } from "../deliver.ts";
-import { analyseStructure, prefetchCompositions, runDigest, serializeDigest } from "../pipeline.ts";
+import {
+  analyseStructure, prefetchCompositions, runDigest, serializeDigest, type IngestFns,
+} from "../pipeline.ts";
 import type { Exposure, Holding, Plan } from "../models.ts";
 import { makeHolding } from "../models.ts";
 import type { FileSystem, HttpClient, Paths } from "../platform.ts";
@@ -38,9 +40,14 @@ export interface AppContext {
   deliver: DeliverContext;
   /** injectable clock for tests */
   now?: () => Date;
+  /** override ingestion (defaults to the real Stage-3 fetchers) — tests/Android */
+  ingest?: Partial<IngestFns>;
   /** platform hook run after schedules change (Windows tasks / Android alarms).
    * Defaults to a no-op reporting "not supported on this platform". */
   syncTasks?: () => Promise<{ ok: boolean; error?: string; results: unknown[] }>;
+  /** open a URL in the user's browser (webviews ignore target=_blank). Platform-
+   * provided (Tauri opener plugin); no-op if absent. */
+  openUrl?: (url: string) => Promise<void>;
 }
 
 const SECRET_KEYS = ["anthropic_api_key"];
@@ -278,6 +285,10 @@ export async function deleteSchedule(ctx: AppContext, id: string) {
   return { deleted: id };
 }
 
+export async function syncSchedules(ctx: AppContext) {
+  return (ctx.syncTasks ?? notSupportedSync)();
+}
+
 export async function runSchedule(ctx: AppContext, id: string) {
   const sched = (await loadSchedules(ctx.fs, ctx.paths)).find((s) => s.id === id);
   if (!sched) throw new NotFound(`No schedule with id ${id}`);
@@ -288,6 +299,13 @@ export async function runSchedule(ctx: AppContext, id: string) {
     skipIfEmpty: sched.skip_if_empty,
   });
   return serializeDigest(digest);
+}
+
+// ---------------------------------------------------------------- open url
+export async function openUrl(ctx: AppContext, url: string) {
+  if (!/^https?:\/\//i.test(url)) throw new BadRequest("Only http(s) URLs.");
+  if (ctx.openUrl) await ctx.openUrl(url);
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------- test email
@@ -301,7 +319,7 @@ export async function testEmail(ctx: AppContext) {
 }
 
 // ---------------------------------------------------------------- internals
-/** Error carrying a 404 intent, so the host bridge can map it to an HTTP status. */
+/** Errors carrying an HTTP intent, so the host bridge / router can map them. */
 export class NotFound extends Error {
   readonly status = 404;
   constructor(message: string) {
@@ -310,11 +328,20 @@ export class NotFound extends Error {
   }
 }
 
+export class BadRequest extends Error {
+  readonly status = 400;
+  constructor(message: string) {
+    super(message);
+    this.name = "BadRequest";
+  }
+}
+
 async function deps(ctx: AppContext) {
   const settings = await loadSettings(ctx.fs, ctx.paths);
   return {
     store: ctx.store, fs: ctx.fs, http: ctx.http, paths: ctx.paths,
-    settings, llm: getLlm(settings, ctx.http), deliver: ctx.deliver, now: ctx.now,
+    settings, llm: getLlm(settings, ctx.http), deliver: ctx.deliver,
+    now: ctx.now, ingest: ctx.ingest,
   };
 }
 

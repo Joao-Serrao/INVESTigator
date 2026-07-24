@@ -1,8 +1,14 @@
 // INVESTigator — local app frontend (vanilla JS, no build step)
 const $ = (s, r = document) => r.querySelector(s);
+// Backend seam. Two hosts, one UI:
+//   - Tauri desktop/Android: window.__invest(method, path, body) runs the bundled
+//     TypeScript engine in-process (no server).
+//   - Python dev server: plain fetch to the FastAPI app.
+// The bridge is set synchronously before this script runs, so detect it once.
+const BRIDGE = typeof window !== 'undefined' ? window.__invest : null;
 const api = {
-  async get(p) { const r = await fetch(p); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText); return r.json(); },
-  async send(p, m, b) { const r = await fetch(p, { method: m, headers: { 'Content-Type': 'application/json' }, body: b == null ? null : JSON.stringify(b) }); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText); return r.json(); },
+  async get(p) { if (BRIDGE) return BRIDGE('GET', p); const r = await fetch(p); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText); return r.json(); },
+  async send(p, m, b) { if (BRIDGE) return BRIDGE(m, p, b); const r = await fetch(p, { method: m, headers: { 'Content-Type': 'application/json' }, body: b == null ? null : JSON.stringify(b) }); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText); return r.json(); },
   put(p, b) { return api.send(p, 'PUT', b); }, post(p, b) { return api.send(p, 'POST', b); }, del(p) { return api.send(p, 'DELETE'); },
 };
 const pct = (x) => (x * 100).toFixed(x >= 0.1 ? 1 : 2) + '%';
@@ -13,7 +19,7 @@ const tip = (t) => `<span class="tip" data-tip="${esc(t)}">i</span>`;
 // through the local server so they open in the user's default browser.
 document.addEventListener('click', (e) => {
   const a = e.target.closest && e.target.closest('a[href^="http"]');
-  if (a) { e.preventDefault(); fetch('/api/open?url=' + encodeURIComponent(a.href)); }
+  if (a) { e.preventDefault(); const p = '/api/open?url=' + encodeURIComponent(a.href); if (BRIDGE) BRIDGE('GET', p); else fetch(p); }
 }, true);
 
 // Click-to-show tooltip popover (native title doesn't work well in a webview).
