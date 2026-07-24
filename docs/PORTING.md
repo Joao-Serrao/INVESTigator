@@ -42,11 +42,30 @@ Use `tauri-plugin-sql` (SQLite) pointed at the **same file** — do not create a
 **Stage 0 — safety.** Back up `%APPDATA%\Investraton` (done: `Documents\INVESTigator-backup-*.zip`).
 Add Export/Import so config+data is portable — this doubles as the way to get your setup onto Android.
 
-**Stage 1 — pure logic (highest value, zero risk).** Port the deterministic modules, which have no
-I/O and are just arithmetic:
-`weights`, `valuation`, `lookthrough`, `concentration`, `plan_align`, `scoping`, `urgency`.
-Then run a **parity harness**: feed both engines identical fixtures and assert the outputs match
-exactly. Nothing ships until the numbers agree.
+**Stage 1 — pure logic. ✅ DONE.** All seven deterministic modules are ported to `engine/src/`:
+`weights`, `valuation`, `lookthrough`, `concentration`, `planAlign`, `scoping`, `urgency`.
+
+Parity harness (`engine/test/`):
+
+```powershell
+python engine\test\make_fixtures.py   # dump inputs + expected output from the Python engine
+cd engine && npm install && npm run parity
+```
+
+`make_fixtures.py` uses the **real** holdings/plan/ETF compositions (read-only) so the maths is
+exercised against thousands of genuine constituents, and synthesises the price/news inputs so the
+fixture is deterministic. Findings and events are compared as **exact strings** (which also
+validates number formatting); floats use a 1e-9 relative epsilon to tolerate summation-order noise.
+
+Current result: **22,057 comparisons, 0 mismatches** across 4 holdings / 4 ETFs / 3,437
+constituents / 3,037 name exposures.
+
+> ⚠️ Fixtures contain real positions and are git-ignored. Regenerate them locally.
+
+**Bug this caught:** Python's `round()` and `f"{x:.Nf}"` use **banker's rounding** (half-to-even)
+while JS `Math.round`/`toFixed` round half away from zero — `round(9.625, 2)` is `9.62` in Python
+but `9.63` in JS. That silently shifted an urgency score and could push an item across a severity
+threshold. All numeric output now goes through `src/round.ts` (`pyRound`/`pyFormat`/`pyThousands`).
 
 **Stage 2 — storage.** CSV/YAML/JSON readers + the SQLite layer, against the contract above.
 Verify by opening *your real database* read-only and confirming History, dedup and value-basis
@@ -63,13 +82,21 @@ TS calls instead of `fetch('/api/...')`.
 **Stage 5 — desktop parity.** Ship the TS build on Windows and run it beside the Python one on the
 same data until they agree. Python retires only after that.
 
-**Stage 6 — Android.** Scheduling moves to WorkManager (~15-min floor, and Doze/OEM battery
-managers make it genuinely less reliable than Task Scheduler). Delivery keeps email/Discord and
-gains native notifications. AI is **Template or Claude-with-your-key** — Ollama is desktop-only.
+**Stage 6 — Android.** Delivery keeps email/Discord and gains native notifications (which work
+fully offline — only *fetching* needs the network). AI is **Template or Claude-with-your-key** —
+Ollama is desktop-only.
+
+Scheduling: use **`AlarmManager.setExactAndAllowWhileIdle()`** (or `setAlarmClock()` for the
+strongest guarantee) — these fire *through* Doze and are what alarm apps use. Do **not** use
+`WorkManager` periodic work for the digest: it is deferrable by design (15-min floor, batched,
+delayed in Doze). Requires the user-grantable `SCHEDULE_EXACT_ALARM` permission on Android 12+,
+and reaching AlarmManager from Tauri needs a small Kotlin plugin.
 
 ## Known losses / risks
 
-- **Background reliability on Android is worse.** This is an OS constraint, not a design choice.
+- **Android scheduling needs the right API + one permission prompt** (see Stage 6). Exact alarms are
+  reliable; aggressive OEM battery managers (Xiaomi/Huawei/Oppo) may still need the user to exempt
+  the app from battery optimisation.
 - **`yfinance` conveniences** (symbol quirks, retries) must be re-implemented; expect edge cases
   with exchange-suffixed tickers.
 - **pandas is gone.** Fine here — the maths is sums and ratios — but CSV parsing must handle the

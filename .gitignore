@@ -28,6 +28,10 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Parity fixtures are generated from REAL local holdings — never commit them.
+# Regenerate with: python engine/test/make_fixtures.py
+engine/test/fixtures/
+
 # Packaging / desktop build artifacts
 packaging/build/
 packaging/dist/
