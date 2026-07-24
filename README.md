@@ -15,6 +15,8 @@ noise-filtered briefing that explains *why each thing matters to you*. It never 
 ![Tauri](https://img.shields.io/badge/shell-Tauri%202-24C8DB)
 [![Buy me a coffee](https://img.shields.io/badge/☕-Buy%20me%20a%20coffee-FFDD00)](https://buymeacoffee.com/joao.serrao)
 
+<img src="docs/screenshots/dashboard.png" alt="INVESTigator dashboard — effective exposure after ETF look-through, region/country/sector breakdown, and structure findings" width="100%" />
+
 </div>
 
 ---
@@ -44,6 +46,25 @@ figures or giving advice.
   focus, run by Windows Task Scheduler. Missed runs fire on next power-on.
 - **Delivery** — console, Discord webhook, or email. Optionally skip sending when nothing was found.
 - **History** — every digest is saved and re-openable.
+
+## Screenshots
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/holdings.png" alt="Holdings editor" /><br/>
+<b>Holdings</b> — just a ticker is required. Values track price movement automatically.</td>
+<td width="50%"><img src="docs/screenshots/plan.png" alt="Plan editor" /><br/>
+<b>Plan</b> — allocation targets, watchlist, and how aggressively to filter noise.</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/schedules.png" alt="Schedules" /><br/>
+<b>Schedules</b> — automatic digests, each with its own depth and focus.</td>
+<td width="50%"><img src="docs/screenshots/history.png" alt="History" /><br/>
+<b>History</b> — every digest is saved and re-openable.</td>
+</tr>
+</table>
+
+<sub>Screenshots use demo data.</sub>
 
 ## Design principles
 
