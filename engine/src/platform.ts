@@ -13,6 +13,18 @@ export interface FileSystem {
   join(...parts: string[]): string;
 }
 
+/**
+ * HTTP is abstracted because a plain webview cannot fetch Yahoo / Google News /
+ * iShares directly — CORS blocks it. Tauri's HTTP plugin performs requests
+ * natively (no CORS), and Node uses global fetch for the parity harness.
+ */
+export interface HttpClient {
+  getText(url: string, headers?: Record<string, string>): Promise<string | null>;
+  getJson<T = unknown>(url: string, headers?: Record<string, string>): Promise<T | null>;
+}
+
+export const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
+
 export type Row = Record<string, any>;
 
 export interface Database {

@@ -9,7 +9,31 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import type { Database, FileSystem, Paths, Row } from "../platform.ts";
+import type { Database, FileSystem, HttpClient, Paths, Row } from "../platform.ts";
+import { UA } from "../platform.ts";
+
+/** Node HTTP via global fetch. The Tauri adapter will use tauri-plugin-http,
+ * which issues requests natively and therefore bypasses CORS. */
+export const nodeHttp: HttpClient = {
+  async getText(url, headers = {}) {
+    try {
+      const r = await fetch(url, { headers: { "User-Agent": UA, ...headers } });
+      if (!r.ok) return null;
+      return await r.text();
+    } catch {
+      return null;
+    }
+  },
+  async getJson<T = unknown>(url: string, headers: Record<string, string> = {}) {
+    try {
+      const r = await fetch(url, { headers: { "User-Agent": UA, ...headers } });
+      if (!r.ok) return null;
+      return (await r.json()) as T;
+    } catch {
+      return null;
+    }
+  },
+};
 
 export const nodeFs: FileSystem = {
   async readText(path) {

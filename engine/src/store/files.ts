@@ -45,6 +45,18 @@ export function parseCsv(text: string): string[][] {
   return rows.filter((r) => r.length > 1 || (r[0] ?? "").trim() !== "");
 }
 
+/** csv.DictReader equivalent: first row is the header, missing fields become "". */
+export function parseCsvDicts(text: string): Record<string, string>[] {
+  const rows = parseCsv(text);
+  if (rows.length === 0) return [];
+  const header = rows[0];
+  return rows.slice(1).map((r) => {
+    const rec: Record<string, string> = {};
+    header.forEach((h, i) => { rec[h] = r[i] ?? ""; });
+    return rec;
+  });
+}
+
 export function parseHoldingsCsv(text: string): Holding[] {
   const rows = parseCsv(text);
   if (rows.length === 0) return [];

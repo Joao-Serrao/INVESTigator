@@ -93,10 +93,45 @@ that secrets are consistently present, without copying credentials to another fi
 > `data/investraton.db`; the *installed* app uses `%APPDATA%\Investraton\`. The parity test
 > deliberately points at the repo path so both sides read the same file.
 
-**Stage 3 — ingestion.** Prices (Yahoo JSON endpoints — what `yfinance` wraps), news (Google News /
-Yahoo RSS + custom feeds), ETF holdings (iShares CSV). All plain HTTP through
-`tauri-plugin-http`, which performs requests natively and therefore **bypasses CORS** — the reason
-this can't just be done in a plain webview.
+**Stage 3 — ingestion. ✅ DONE.** `engine/src/ingest/`:
+
+| Module | Source | Replaces |
+|---|---|---|
+| `prices.ts` | Yahoo chart endpoint (`/v8/finance/chart/{sym}?range=5d&interval=1d`) | `yfinance` |
+| `news.ts` | Google News RSS (+ `site:` for custom domains), Yahoo headline RSS, custom feeds | `feedparser`, `yfinance.news` |
+| `etfHoldings.ts` | iShares daily holdings CSV, product-id addressed, with `index_proxies` | `requests` + `csv` |
+
+HTTP is abstracted (`HttpClient` in `src/platform.ts`) because a plain webview **cannot** fetch any
+of these — CORS blocks all three. Tauri's `tauri-plugin-http` performs requests natively and
+therefore bypasses CORS; Node uses global `fetch`.
+
+Two notes on fidelity. Python gets prices through `yfinance`, which is itself a wrapper over that
+chart endpoint — we confirmed the raw `close` array and the derived `price`/`change` match
+`yfinance.history(period="5d")` exactly for the same symbol. And RSS moves from `feedparser` to
+`fast-xml-parser` (works in Node *and* in a webview, unlike `feedparser`).
+
+*Parity had to change shape here:* live data moves, so instead of comparing live fetches we
+snapshot real payloads once, have the Python parsers produce their output, and assert the TS
+parsers agree.
+
+```powershell
+python engine\test\make_ingest_fixtures.py   # captures raw responses + Python's parse
+cd engine && npm run ingest-parity
+```
+
+Result: **4,390 comparisons, 0 mismatches** — 3 price snapshots, both news query builders,
+222 RSS entries (title, link, source, publish instant, summary text, **and `dedup_key`**), and all
+505 constituents of a real S&P 500 CSV plus their weight sum.
+
+`dedup_key` is checked explicitly: it drives the "have we already shown this?" contract, so a
+mismatch would make the Android app re-report every article once on first run.
+
+One deliberate divergence: `feedparser` sanitises HTML in `summary`, `fast-xml-parser` returns it
+raw. Neither engine renders the stored summary as markup, so the harness compares the *visible
+text* (tags stripped, entities decoded, whitespace collapsed) rather than the raw bytes.
+
+The suite was verified against planted errors — 3 mutations in the fixture produced exactly 3
+failures and a non-zero exit, so a green run is not a vacuous one.
 
 **Stage 4 — UI.** Largely unchanged: it already speaks to a small API surface, which becomes local
 TS calls instead of `fetch('/api/...')`.
