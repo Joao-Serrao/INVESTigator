@@ -1,0 +1,69 @@
+/** Node adapter — used by the parity harness and any CLI use.
+ *
+ * The Tauri adapter (tauri-plugin-fs / tauri-plugin-sql) implements the same
+ * interfaces, so nothing above this file changes between platforms.
+ */
+
+import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+
+import type { Database, FileSystem, Paths, Row } from "../platform.ts";
+
+export const nodeFs: FileSystem = {
+  async readText(path) {
+    try {
+      const buf = await readFile(path, "utf-8");
+      return buf.replace(/^﻿/, ""); // strip BOM, matching utf-8-sig
+    } catch {
+      return null;
+    }
+  },
+  async writeText(path, content) {
+    await writeFile(path, content, "utf-8");
+  },
+  async exists(path) {
+    return existsSync(path);
+  },
+  async mkdirp(path) {
+    await mkdir(path, { recursive: true });
+  },
+  join(...parts) {
+    return join(...parts);
+  },
+};
+
+export class NodeDatabase implements Database {
+  private db: DatabaseSync;
+
+  constructor(path: string, opts: { readOnly?: boolean } = {}) {
+    this.db = new DatabaseSync(path, { readOnly: opts.readOnly ?? false });
+  }
+
+  async select<T = Row>(sql: string, params: unknown[] = []): Promise<T[]> {
+    return this.db.prepare(sql).all(...(params as any[])) as T[];
+  }
+
+  async execute(sql: string, params: unknown[] = []): Promise<void> {
+    this.db.prepare(sql).run(...(params as any[]));
+  }
+
+  /** Multi-statement DDL (the schema script). */
+  async exec(sql: string): Promise<void> {
+    this.db.exec(sql);
+  }
+
+  async close(): Promise<void> {
+    this.db.close();
+  }
+}
+
+/** Mirrors config.py: %APPDATA%/Investraton for user data. */
+export function nodePaths(repoRoot: string, home?: string): Paths {
+  const appData = process.env.APPDATA ?? process.env.HOME ?? ".";
+  return {
+    home: home ?? process.env.INVESTRATON_HOME ?? join(appData, "Investraton"),
+    resource: repoRoot,
+  };
+}

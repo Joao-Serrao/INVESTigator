@@ -67,9 +67,31 @@ while JS `Math.round`/`toFixed` round half away from zero — `round(9.625, 2)` 
 but `9.63` in JS. That silently shifted an urgency score and could push an item across a severity
 threshold. All numeric output now goes through `src/round.ts` (`pyRound`/`pyFormat`/`pyThousands`).
 
-**Stage 2 — storage.** CSV/YAML/JSON readers + the SQLite layer, against the contract above.
-Verify by opening *your real database* read-only and confirming History, dedup and value-basis
-all resolve identically.
+**Stage 2 — storage. ✅ DONE.** `engine/src/store/` implements the contract above:
+`files.ts` (holdings CSV, plan YAML via js-yaml, app_settings + schedules JSON, ETF cache) and
+`db.ts` (the *same* SQLite schema, including the pre-`scope` `reported_events` migration).
+
+Platform I/O is abstracted (`src/platform.ts`) with a Node adapter (`src/adapters/node.ts`) using
+`node:fs` + the built-in `node:sqlite` — **no native dependency**. The Tauri adapter
+(`tauri-plugin-fs` / `tauri-plugin-sql`) will implement the same two interfaces, so nothing above
+that layer changes between desktop and Android.
+
+```powershell
+python engine\test\make_storage_fixtures.py
+cd engine && npm run storage-parity
+```
+
+The database is opened **read-only**, so the test can never modify real data. Result:
+**204 comparisons, 0 mismatches** — holdings, plan, settings, schedules, table counts,
+`value_tracking` rows, the digest list, and row-level `alreadyReported` / `hasNews` /
+`latestPrice` lookups all agree.
+
+Secrets are redacted to a marker in the fixture: we assert keys and non-secret values match and
+that secrets are consistently present, without copying credentials to another file.
+
+> ⚠️ Note the two databases. In dev, Python's `HOME` is the **repo root**, so it uses
+> `data/investraton.db`; the *installed* app uses `%APPDATA%\Investraton\`. The parity test
+> deliberately points at the repo path so both sides read the same file.
 
 **Stage 3 — ingestion.** Prices (Yahoo JSON endpoints — what `yfinance` wraps), news (Google News /
 Yahoo RSS + custom feeds), ETF holdings (iShares CSV). All plain HTTP through

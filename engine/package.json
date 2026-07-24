@@ -6,10 +6,15 @@
   "private": true,
   "scripts": {
     "parity": "node --experimental-strip-types test/parity.ts",
+    "storage-parity": "node --experimental-strip-types test/storage-parity.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.20.1",
     "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "js-yaml": "^5.2.2"
   }
 }
