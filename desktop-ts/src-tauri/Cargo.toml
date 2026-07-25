@@ -29,3 +29,10 @@ tauri-plugin-os = "2"
 # Android. native-tls would need OpenSSL on Android, which can't cross-compile; ring
 # (rustls' backend) already builds here — reqwest pulls it in on desktop too.
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "rustls-tls", "builder", "hostname"] }
+
+# Strip the debug build's symbols. The Android debug .so is otherwise ~208MB of
+# DWARF debuginfo, which (uncompressed + 16KB-page-aligned in the APK) balloons the
+# debug APK to 400MB+. Stripping keeps it a debug-signed, installable APK at a sane
+# size. The desktop installer uses [profile.release] and is unaffected.
+[profile.dev]
+strip = true

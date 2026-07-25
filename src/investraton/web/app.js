@@ -129,6 +129,13 @@ function go(view) {
 }
 document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', () => go(n.dataset.view)));
 
+// Mobile drawer: hamburger toggles it; nav + backdrop close it. (No effect on
+// desktop — the button/backdrop are display:none above the mobile breakpoint.)
+const closeNav = () => $('#app').classList.remove('nav-open');
+$('#menu-btn')?.addEventListener('click', () => $('#app').classList.toggle('nav-open'));
+$('#backdrop')?.addEventListener('click', closeNav);
+document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', closeNav));
+
 async function loadStatus() {
   try {
     const s = await api.get('/api/status');
@@ -321,12 +328,15 @@ const debouncedSaveSched = debounce(async (i) => {
   catch (e) { setSaved('Save failed'); toast(e.message, true); }
 }, 700);
 async function renderSchedules() {
-  $('#topbar-actions').innerHTML = savedTag + '<button class="btn" id="add">+ New schedule</button><button class="btn primary" id="sync">Sync to Windows now</button>';
+  // "Sync to Windows" is desktop-only; on mobile OS scheduling isn't wired yet.
+  const mobile = typeof window !== 'undefined' && window.__platform === 'android';
+  $('#topbar-actions').innerHTML = savedTag + '<button class="btn" id="add">+ New schedule</button>'
+    + (mobile ? '' : '<button class="btn primary" id="sync">Sync to Windows now</button>');
   const data = await api.get('/api/schedules');
   scheds = data.schedules; schedMeta = data;
   drawSchedules();
   $('#add').addEventListener('click', addSchedule);
-  $('#sync').addEventListener('click', syncSchedules);
+  $('#sync')?.addEventListener('click', syncSchedules);
 }
 async function addSchedule() {
   try {
@@ -516,6 +526,7 @@ async function saveSettings() {
 
 // ---------- Guide ----------
 async function renderGuide() {
+  const mobile = typeof window !== 'undefined' && window.__platform === 'android';
   $('#view').innerHTML = `<div class="guide">
     <div class="card"><h2>How INVESTigator works</h2>
       <p class="muted">It pulls your holdings + free public data (prices, news, ETF holdings), computes what matters to <em>you</em> in code, and writes a calm briefing. It never tells you to buy or sell — it amplifies your own thinking.</p></div>
@@ -531,10 +542,13 @@ async function renderGuide() {
       <tr><td><strong>urgent</strong></td><td>Only high-urgency alerts. Great for a daily heads-up.</td></tr>
       <tr><td><strong>none</strong></td><td>No filtering — show almost everything.</td></tr></table>
       <p style="margin-top:10px"><strong>Focus:</strong> <code>all</code> (holdings + watchlist), <code>invested</code> (holdings only), <code>watchlist</code> (discovery only), or <code>group:growth_stock</code> / <code>group:core</code> (only positions with that type or tag).</p></details>
+    ${mobile ? `
+    <details><summary>AI narrative (optional)</summary>
+      <p>The app works fully without AI — numbers are always computed in code. For nicer prose you can add <strong>Claude</strong> in <strong>Settings → AI brain</strong> with your own Anthropic API key. (Local AI like Ollama is desktop-only and isn't available on mobile.)</p></details>` : `
     <details><summary>Setting up Ollama (free local AI)</summary>
       <p>The app works without AI, but Ollama gives nicer summaries, fully offline & private.</p>
       <p>1. Install from <code>ollama.com</code>. &nbsp; 2. In a terminal: <code>ollama pull llama3.1</code>. &nbsp; 3. It serves at <code>http://localhost:11434</code> automatically.</p>
-      <p>4. In <strong>Settings → AI brain</strong>, pick <kbd>Ollama</kbd>, set the model to <code>llama3.1</code> (or any model you pulled), Save. Done.</p></details>
+      <p>4. In <strong>Settings → AI brain</strong>, pick <kbd>Ollama</kbd>, set the model to <code>llama3.1</code> (or any model you pulled), Save. Done.</p></details>`}
     <details><summary>Adding extra news sources</summary>
       <p><strong>domain</strong> — enter a site like <code>reuters.com</code> or <code>ft.com</code>. The app runs targeted queries for your holdings restricted to that site, so its coverage is pulled in.</p>
       <p><strong>rss feed</strong> — paste a full RSS/Atom URL. The app scans the feed and matches articles that mention your holdings or watchlist names.</p>
@@ -560,7 +574,7 @@ async function renderGuide() {
       </ol>
       <p class="small">Treat the webhook URL like a password — anyone with it can post to that channel. Long digests are split into multiple messages automatically. As with email, digests post from <strong>schedules</strong> (or a schedule's "Run now"), not the dashboard preview.</p></details>
     <details><summary>Automatic digests (schedules)</summary>
-      <p>Create one or more schedules in the <strong>Schedules</strong> tab — each with its own frequency, time, complexity and focus. Click <strong>Sync to Windows</strong> to register them with Windows Task Scheduler so they run even when the app is closed.</p>
+      <p>Create one or more schedules in the <strong>Schedules</strong> tab — each with its own frequency, time, complexity and focus.${mobile ? ' On this phone you can create schedules and use <strong>Run now</strong>; background delivery when the app is closed is coming soon.' : ' Click <strong>Sync to Windows</strong> to register them with Windows Task Scheduler so they run even when the app is closed.'}</p>
       <p>Example combo: a <em>daily · urgent · watchlist</em> alert + a <em>weekly · complex · all</em> full review. Use <strong>Run now</strong> to preview any schedule immediately.</p>
       <p class="small">If sync reports issues, it's usually a permissions prompt — re-run, or create the task manually from the command shown in the console.</p></details>
     <details><summary>Look-through, coverage & “opaque”</summary>

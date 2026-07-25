@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>INVESTigator</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
@@ -29,11 +29,14 @@
 
     <main class="content">
       <header class="topbar">
+        <button class="menu-btn" id="menu-btn" aria-label="Menu">☰</button>
         <h1 id="view-title">Dashboard</h1>
         <div class="topbar-actions" id="topbar-actions"></div>
       </header>
       <section id="view" class="view"></section>
     </main>
+
+    <div class="backdrop" id="backdrop"></div>
   </div>
 
   <div id="toast" class="toast"></div>

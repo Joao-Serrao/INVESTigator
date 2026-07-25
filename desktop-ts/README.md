@@ -51,6 +51,22 @@ npm run tauri dev      # run the app
 npm run tauri build    # produce the NSIS + MSI installers
 ```
 
+### Android
+
+Needs the Android SDK, an NDK (r26+), `JAVA_HOME` (JDK 17+), and the Rust android
+targets (`rustup target add aarch64-linux-android armv7-linux-androideabi
+i686-linux-android x86_64-linux-android`). With `ANDROID_HOME` / `NDK_HOME` set:
+
+```bash
+npm run tauri -- android init                               # scaffold src-tauri/gen/android (once)
+npm run tauri -- icon ../packaging/icon.png                 # brand the launcher icons — init writes DEFAULT Tauri icons
+npm run tauri -- android build --debug --apk --target aarch64   # -> gen/android/.../app-universal-debug.apk
+```
+
+`gen/android` is generated (gitignored), so re-run the `icon` step after any
+`android init`. Mobile branches at runtime: no local AI (Ollama), native
+notifications, and a drawer layout — all driven by `window.__platform`.
+
 ## Build status
 
 `npm run tauri build` was run end to end on Windows (Rust 1.96, MSVC): the release
