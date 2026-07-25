@@ -11,7 +11,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { platform as osPlatform } from "@tauri-apps/plugin-os";
 import {
-  cancelAll, isPermissionGranted, onAction, requestPermission, sendNotification,
+  cancel, isPermissionGranted, onAction, pending, requestPermission, sendNotification,
   Schedule as NotifSchedule, ScheduleEvery,
 } from "@tauri-apps/plugin-notification";
 
@@ -45,11 +45,12 @@ const emailSender: EmailSender = {
   },
 };
 
-/** Native notifications via the Tauri plugin — the offline delivery channel. */
+/** Native notifications via the Tauri plugin — the offline delivery channel.
+ * Tagged so a tap opens History (where the just-delivered digest is). */
 const notifier: Notifier = {
   async notify(title: string, body: string) {
     if (!(await ensureNotifyPermission())) throw new Error("Notification permission not granted");
-    sendNotification({ title, body });
+    sendNotification({ title, body, extra: { view: "history" } });
   },
 };
 
@@ -107,7 +108,14 @@ async function applyMobileSchedules(): Promise<{ ok: boolean; error?: string; re
     }
     const { fs, paths } = await platformP;
     const scheds = await loadSchedules(fs, paths);
-    await cancelAll(); // clear our previously-scheduled reminders, then re-create
+    // Clear previously-scheduled reminders, then re-create. NB: cancelAll() is
+    // broken in the plugin (it invokes `cancel` with no `notifications`, hitting a
+    // lateinit -> "lateinit property notifications has not been initialized"), so we
+    // enumerate the pending ones and cancel them by explicit id.
+    try {
+      const ids = (await pending()).map((p) => p.id).filter((id) => typeof id === "number");
+      if (ids.length) await cancel(ids);
+    } catch { /* nothing pending yet */ }
     const results: Array<{ name: string; ok: boolean; detail?: string }> = [];
     for (const s of scheds) {
       if (!s.enabled) continue;
@@ -171,11 +179,16 @@ if (IS_MOBILE) {
     try {
       await onAction(async (n) => {
         const sid = typeof n.extra?.scheduleId === "string" ? n.extra.scheduleId : null;
-        if (!sid) return;
-        try {
-          await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(sid)}/run`);
+        if (sid) {
+          // A schedule reminder: run that digest, then show the result.
+          try {
+            await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(sid)}/run`);
+          } catch { /* it still delivered to its channels */ }
           location.hash = "history";
-        } catch { /* the digest still delivered to its channels */ }
+        } else if (n.extra?.view === "history") {
+          // A delivered digest: jump to History to read it.
+          location.hash = "history";
+        }
       });
     } catch { /* onAction unsupported on this platform */ }
   }).catch(() => {});
