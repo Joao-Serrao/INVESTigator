@@ -234,15 +234,23 @@ Done and verified (`npm run mobile-checks`):
 - Both new plugins (`notification`, `os`) register and `cargo check` passes on the existing desktop
   build, so nothing regressed there.
 
-Remaining (needs the Android toolchain — Java ✓ and SDK ✓ are here, but the **NDK**, the **Rust
-android targets**, and `cmdline-tools` are not):
+**The APK builds.** Toolchain installed on top of the existing Java 21 + SDK: `cmdline-tools`
+(build 13114758), **NDK r26d**, and the four Rust android targets. `tauri android init` scaffolds
+`src-tauri/gen/android`; `tauri android build --debug --apk --target aarch64` cross-compiles the
+whole Rust dep tree + the TS engine and produces `app-universal-debug.apk`. Build env:
+`ANDROID_HOME`, `NDK_HOME`, `JAVA_HOME=jdk-21`.
 
-- `tauri android init` + `tauri android build` (APK).
-- Scheduling: **`AlarmManager.setExactAndAllowWhileIdle()`** (or `setAlarmClock()` for the strongest
-  guarantee) — these fire *through* Doze and are what alarm apps use. Do **not** use `WorkManager`
-  periodic work for the digest: it is deferrable by design (15-min floor, batched, delayed in Doze).
-  Needs the user-grantable `SCHEDULE_EXACT_ALARM` permission on Android 12+, and a small Kotlin Tauri
-  plugin to reach AlarmManager (the `sync_schedules` Rust command is the desktop/mobile seam it wires into).
+One cross-compilation fix mattered: `lettre` had been set to `native-tls` (schannel) to avoid `ring`
+on Windows — but on Android `native-tls` needs **OpenSSL**, which can't cross-compile. Switched to
+`rustls-tls` (pure Rust, `ring` backend), which builds on **both** targets; `ring` was never actually
+a problem here (reqwest already pulls it in on desktop). Target-agnostic, so one dependency line.
+
+Remaining: **runtime validation** (install/launch on a device or emulator — a build is not a run),
+and **scheduling** via **`AlarmManager.setExactAndAllowWhileIdle()`** (or `setAlarmClock()` for the
+strongest guarantee) — these fire *through* Doze and are what alarm apps use. Do **not** use
+`WorkManager` periodic work for the digest: it is deferrable by design (15-min floor, batched,
+delayed in Doze). Needs the user-grantable `SCHEDULE_EXACT_ALARM` permission on Android 12+, and a
+small Kotlin Tauri plugin to reach AlarmManager (the `sync_schedules` Rust command is the seam).
 
 ## Known losses / risks
 
