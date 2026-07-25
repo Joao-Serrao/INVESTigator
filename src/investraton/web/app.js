@@ -239,16 +239,16 @@ function drawHoldings() {
   $('#view').innerHTML = `<div class="card">
     <h2>Your positions</h2>
     <div class="sub">Only <strong>ticker</strong> is required ${tip('Use Yahoo Finance tickers: EU listings need a suffix (IWDA.AS, CSPX.L); US ones do not (AAPL).')}. Leave amount blank to equal-weight. Type ${tip('etf = a fund (gets look-through). growth_stock / experimental / equity bucket you for plan comparison.')} and tag ${tip('A free label like core / growth / speculative. Used for the “group” focus in schedules.')} are optional.</div>
-    <table><thead><tr><th>Ticker</th><th>Name</th><th>Type</th><th class="num">Amount €</th><th class="num">Value now ${tip('Estimated current value = your entered amount adjusted by how the price moved since you set it (updates when a digest fetches prices). It’s an estimate — re-enter the amount any time to reset it.')}</th><th class="num">Avg cost</th><th>Tag</th><th></th></tr></thead>
+    <table class="holdings-tbl"><thead><tr><th>Ticker</th><th>Name</th><th>Type</th><th class="num">Amount €</th><th class="num">Value now ${tip('Estimated current value = your entered amount adjusted by how the price moved since you set it (updates when a digest fetches prices). It’s an estimate — re-enter the amount any time to reset it.')}</th><th class="num">Avg cost</th><th>Tag</th><th></th></tr></thead>
     <tbody>${holdingRows.map((h, i) => `<tr>
-      <td><input data-i="${i}" data-k="ticker" value="${esc(h.ticker)}" placeholder="AAPL"></td>
-      <td><input data-i="${i}" data-k="name" value="${esc(h.name)}" placeholder="Apple Inc"></td>
-      <td><select data-i="${i}" data-k="type">${TYPES.map(t => opt(t, h.type)).join('')}</select></td>
-      <td><input class="num" data-i="${i}" data-k="amount_invested_eur" value="${esc(h.amount_invested_eur ?? '')}" placeholder="—"></td>
-      <td class="num">${valCell(h)}</td>
-      <td><input class="num" data-i="${i}" data-k="avg_cost" value="${esc(h.avg_cost ?? '')}" placeholder="—"></td>
-      <td><input data-i="${i}" data-k="strategy_tag" value="${esc(h.strategy_tag)}" placeholder="core"></td>
-      <td><button class="btn ghost" data-del="${i}">✕</button></td></tr>`).join('')}</tbody></table>
+      <td data-label="Ticker"><input data-i="${i}" data-k="ticker" value="${esc(h.ticker)}" placeholder="AAPL"></td>
+      <td data-label="Name"><input data-i="${i}" data-k="name" value="${esc(h.name)}" placeholder="Apple Inc"></td>
+      <td data-label="Type"><select data-i="${i}" data-k="type">${TYPES.map(t => opt(t, h.type)).join('')}</select></td>
+      <td data-label="Amount €" class="num"><input class="num" data-i="${i}" data-k="amount_invested_eur" value="${esc(h.amount_invested_eur ?? '')}" placeholder="—"></td>
+      <td data-label="Value now" class="num">${valCell(h)}</td>
+      <td data-label="Avg cost" class="num"><input class="num" data-i="${i}" data-k="avg_cost" value="${esc(h.avg_cost ?? '')}" placeholder="—"></td>
+      <td data-label="Tag"><input data-i="${i}" data-k="strategy_tag" value="${esc(h.strategy_tag)}" placeholder="core"></td>
+      <td data-label=""><button class="btn ghost" data-del="${i}">✕</button></td></tr>`).join('')}</tbody></table>
     ${holdingRows.length ? '' : '<div class="empty">No positions yet — click “Add position”.</div>'}</div>`;
   $('#view').querySelectorAll('input,select').forEach(el => el.addEventListener('input', () => { holdingRows[el.dataset.i][el.dataset.k] = el.value; }));
   $('#view').querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { holdingRows.splice(+b.dataset.del, 1); drawHoldings(); }));
@@ -328,10 +328,10 @@ const debouncedSaveSched = debounce(async (i) => {
   catch (e) { setSaved('Save failed'); toast(e.message, true); }
 }, 700);
 async function renderSchedules() {
-  // "Sync to Windows" is desktop-only; on mobile OS scheduling isn't wired yet.
+  // Desktop syncs to Windows Task Scheduler; mobile sets repeating reminder notifications.
   const mobile = typeof window !== 'undefined' && window.__platform === 'android';
   $('#topbar-actions').innerHTML = savedTag + '<button class="btn" id="add">+ New schedule</button>'
-    + (mobile ? '' : '<button class="btn primary" id="sync">Sync to Windows now</button>');
+    + `<button class="btn primary" id="sync">${mobile ? 'Set phone reminders' : 'Sync to Windows now'}</button>`;
   const data = await api.get('/api/schedules');
   scheds = data.schedules; schedMeta = data;
   drawSchedules();
@@ -397,14 +397,17 @@ async function runScheduleNow(i, btn) {
   } catch (e) { toast(e.message, true); } finally { btn.disabled = false; drawSchedules(); }
 }
 async function syncSchedules() {
-  const btn = $('#sync'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Syncing…';
+  const mobile = typeof window !== 'undefined' && window.__platform === 'android';
+  const btn = $('#sync'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ' + (mobile ? 'Setting…' : 'Syncing…');
   try {
     for (let i = 0; i < scheds.length; i++) await persistSchedule(i);
     const res = await api.post('/api/schedules/sync');
     drawSchedules();
     if (res.error) toast(res.error, true);
+    else if (mobile) toast(res.ok ? 'Reminders set on your phone ✓' : 'Set with some issues', !res.ok);
     else toast(res.ok ? 'Synced to Windows Task Scheduler ✓' : 'Synced with some issues — see Guide', !res.ok);
-  } catch (e) { toast(e.message, true); } finally { btn.disabled = false; btn.textContent = 'Sync to Windows'; }
+  } catch (e) { toast(e.message, true); }
+  finally { btn.disabled = false; btn.textContent = mobile ? 'Set phone reminders' : 'Sync to Windows'; }
 }
 
 // ---------- History ----------
@@ -574,7 +577,8 @@ async function renderGuide() {
       </ol>
       <p class="small">Treat the webhook URL like a password — anyone with it can post to that channel. Long digests are split into multiple messages automatically. As with email, digests post from <strong>schedules</strong> (or a schedule's "Run now"), not the dashboard preview.</p></details>
     <details><summary>Automatic digests (schedules)</summary>
-      <p>Create one or more schedules in the <strong>Schedules</strong> tab — each with its own frequency, time, complexity and focus.${mobile ? ' On this phone you can create schedules and use <strong>Run now</strong>; background delivery when the app is closed is coming soon.' : ' Click <strong>Sync to Windows</strong> to register them with Windows Task Scheduler so they run even when the app is closed.'}</p>
+      <p>Create one or more schedules in the <strong>Schedules</strong> tab — each with its own frequency, time, complexity and focus.${mobile ? ' On your phone, tap <strong>Set phone reminders</strong>: each schedule becomes a repeating notification at its time (it fires even when the app is closed, and through battery-saver). Tap the notification to open the app and run that digest — which then delivers to its channels (notification, email, Discord).' : ' Click <strong>Sync to Windows</strong> to register them with Windows Task Scheduler so they run even when the app is closed.'}</p>
+      ${mobile ? '<p class="small">Allow notifications when asked (and, if your phone prompts, "alarms &amp; reminders" / exact alarms) so reminders fire on time. After a phone restart, open the app once to re-arm them.</p>' : ''}
       <p>Example combo: a <em>daily · urgent · watchlist</em> alert + a <em>weekly · complex · all</em> full review. Use <strong>Run now</strong> to preview any schedule immediately.</p>
       <p class="small">If sync reports issues, it's usually a permissions prompt — re-run, or create the task manually from the command shown in the console.</p></details>
     <details><summary>Look-through, coverage & “opaque”</summary>

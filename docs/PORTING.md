@@ -245,12 +245,28 @@ on Windows — but on Android `native-tls` needs **OpenSSL**, which can't cross-
 `rustls-tls` (pure Rust, `ring` backend), which builds on **both** targets; `ring` was never actually
 a problem here (reqwest already pulls it in on desktop). Target-agnostic, so one dependency line.
 
-Remaining: **runtime validation** (install/launch on a device or emulator — a build is not a run),
-and **scheduling** via **`AlarmManager.setExactAndAllowWhileIdle()`** (or `setAlarmClock()` for the
-strongest guarantee) — these fire *through* Doze and are what alarm apps use. Do **not** use
-`WorkManager` periodic work for the digest: it is deferrable by design (15-min floor, batched,
-delayed in Doze). Needs the user-grantable `SCHEDULE_EXACT_ALARM` permission on Android 12+, and a
-small Kotlin Tauri plugin to reach AlarmManager (the `sync_schedules` Rust command is the seam).
+**Runs on a real phone** (Xiaomi/Android): the WebView boots, SQLite opens, the UI renders. The
+mobile layout gets its own treatment while desktop stays byte-identical — the desktop window is
+min-width 900px so it never enters the `max-width: 720px` block. Mobile: off-canvas drawer nav,
+safe-area insets, a card layout for the holdings editor, no Ollama, native notifications.
+
+**Scheduling — done, and simpler than planned.** No hand-written Kotlin AlarmManager plugin was
+needed: `@tauri-apps/plugin-notification` already exposes `Schedule.interval/every` with
+`allowWhileIdle`, and ships a `TimedNotificationPublisher` (AlarmManager) plus a
+`LocalNotificationRestoreReceiver` that re-registers on `BOOT_COMPLETED`. So on mobile a schedule
+becomes a repeating **reminder notification** (`main.ts` `applyMobileSchedules`, wired as the
+`syncTasks` hook): it fires through Doze even with the app closed, survives reboot, and tapping it
+opens the app to run that digest (which then delivers to its channels). Exact-alarm permission is
+intentionally *not* requested — "reliable within a window" is right for a digest, and it dodges the
+Play Store `SCHEDULE_EXACT_ALARM` scrutiny.
+
+*Fully-automatic background execution* (produce + deliver with the app closed, no tap) is the one
+thing left, and it's hard by nature: the engine runs in the WebView, so a background run needs a
+headless WebView/JS service — a much larger, fragile effort. The reminder model is the honest MVP.
+
+Remaining: **runtime validation** of the digest/SMTP paths on-device, and porting **desktop**
+scheduling — the TS desktop app's `sync_schedules` Rust command is still a stub (the Python app does
+the real Windows Task Scheduler work), so that lands when Python retires.
 
 ## Known losses / risks
 
