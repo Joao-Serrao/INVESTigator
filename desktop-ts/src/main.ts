@@ -174,16 +174,22 @@ if (IS_MOBILE) {
   // Register the tap handler as early as possible: when a notification LAUNCHES the
   // app, the plugin emits "actionPerformed" during load, which can beat a listener
   // registered after the async DB init. The callback awaits `ready` for the context.
-  onAction(async (n) => {
+  //
+  // The payload is the action wrapper { actionId, notification, inputValue } — the
+  // notification (with our `extra`) is NESTED under `.notification`, not on the
+  // payload itself. Handle either shape defensively.
+  onAction(async (payload) => {
+    const p = payload as { extra?: Record<string, unknown>; notification?: { extra?: Record<string, unknown> } };
+    const extra = p.notification?.extra ?? p.extra ?? {};
     const ctx = await ready;
-    const sid = typeof n.extra?.scheduleId === "string" ? n.extra.scheduleId : null;
+    const sid = typeof extra.scheduleId === "string" ? extra.scheduleId : null;
     if (sid) {
       // A schedule reminder: run that digest (delivering to its channels), show it.
       try {
         await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(sid)}/run`);
       } catch { /* it still delivered to its channels */ }
       location.hash = "history";
-    } else if (n.extra?.view === "history") {
+    } else if (extra.view === "history") {
       location.hash = "history"; // a delivered digest -> read it in History
     }
   }).catch(() => { /* onAction unsupported on this platform */ });
