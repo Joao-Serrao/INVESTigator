@@ -11,7 +11,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { platform as osPlatform } from "@tauri-apps/plugin-os";
 import {
-  cancelAll, isPermissionGranted, requestPermission, sendNotification,
+  cancelAll, isPermissionGranted, onAction, requestPermission, sendNotification,
   Schedule as NotifSchedule, ScheduleEvery,
 } from "@tauri-apps/plugin-notification";
 
@@ -59,21 +59,35 @@ async function ensureNotifyPermission(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------- mobile scheduler
+// allowWhileIdle would make the plugin schedule an EXACT alarm, which throws a
+// SecurityException on Android 12+ unless the app holds SCHEDULE_EXACT_ALARM. We
+// keep it false: an inexact reminder (fires within a short window) is right for a
+// digest and needs no special-permission prompt.
+const ALLOW_IDLE = false;
+
 /** Map a saved schedule (frequency + HH:MM) to a repeating notification schedule.
- * `allowWhileIdle` => AlarmManager.setExactAndAllowWhileIdle on Android, so it
- * fires through Doze. `interval` is calendar-matched (like cron); `every` is a
- * fixed cadence, used for the odd "every 3 days" case. */
+ * `interval` is calendar-matched (like cron); `every` is a fixed cadence, used for
+ * the odd "every 3 days" case. */
 function toNotifSchedule(frequency: string, time: string): NotifSchedule {
   const [hh, mm] = (time || "08:00").split(":");
   const hour = Number(hh) || 0;
   const minute = Number(mm) || 0;
   switch (frequency) {
-    case "daily": return NotifSchedule.interval({ hour, minute }, true);
-    case "every_3_days": return NotifSchedule.every(ScheduleEvery.Day, 3, true);
-    case "monthly": return NotifSchedule.interval({ day: 1, hour, minute }, true);
+    case "daily": return NotifSchedule.interval({ hour, minute }, ALLOW_IDLE);
+    case "every_3_days": return NotifSchedule.every(ScheduleEvery.Day, 3, ALLOW_IDLE);
+    case "monthly": return NotifSchedule.interval({ day: 1, hour, minute }, ALLOW_IDLE);
     case "weekly":
-    default: return NotifSchedule.interval({ weekday: 2, hour, minute }, true); // Monday
+    default: return NotifSchedule.interval({ weekday: 2, hour, minute }, ALLOW_IDLE); // Monday
   }
+}
+
+/** Best-effort readable message from any thrown/rejected value (Tauri rejects with
+ * objects/strings, not always Errors — String(obj) would give "[object Object]"). */
+function errText(e: unknown): string {
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
+  try { return JSON.stringify(e); } catch { return String(e); }
 }
 
 /** Stable positive 32-bit notification id from a schedule's id. */
@@ -94,24 +108,26 @@ async function applyMobileSchedules(): Promise<{ ok: boolean; error?: string; re
     const { fs, paths } = await platformP;
     const scheds = await loadSchedules(fs, paths);
     await cancelAll(); // clear our previously-scheduled reminders, then re-create
-    const results: unknown[] = [];
+    const results: Array<{ name: string; ok: boolean; detail?: string }> = [];
     for (const s of scheds) {
       if (!s.enabled) continue;
       try {
-        sendNotification({
+        await sendNotification({
           id: notifIdFor(s.id),
           title: `INVESTigator — ${s.name}`,
           body: `Your ${s.frequency.replace(/_/g, " ")} digest is due — tap to run it.`,
           schedule: toNotifSchedule(s.frequency, s.time),
+          extra: { scheduleId: s.id }, // so a tap can find + run this schedule
         });
-        results.push({ name: s.name, id: s.id, ok: true });
+        results.push({ name: s.name, ok: true });
       } catch (e) {
-        results.push({ name: s.name, id: s.id, ok: false, detail: String(e) });
+        results.push({ name: s.name, ok: false, detail: errText(e) });
       }
     }
-    return { ok: true, results };
+    const failed = results.find((r) => !r.ok);
+    return { ok: !failed, error: failed?.detail, results };
   } catch (e) {
-    return { ok: false, error: String(e), results: [] };
+    return { ok: false, error: errText(e), results: [] };
   }
 }
 
@@ -145,8 +161,25 @@ async function buildContext(): Promise<AppContext> {
 // Kick off init once; every bridge call awaits the same promise.
 const ready: Promise<AppContext> = buildContext();
 
-// Re-register reminders on launch (AlarmManager alarms don't survive a reboot).
-if (IS_MOBILE) ready.then(() => applyMobileSchedules()).catch(() => {});
+if (IS_MOBILE) {
+  ready.then(async (ctx) => {
+    // Re-register reminders on launch (belt-and-braces; the plugin also restores
+    // them on BOOT_COMPLETED).
+    await applyMobileSchedules();
+    // Tapping a reminder opens the app, runs that schedule (delivering to its
+    // channels), and jumps to History so the result is visible.
+    try {
+      await onAction(async (n) => {
+        const sid = typeof n.extra?.scheduleId === "string" ? n.extra.scheduleId : null;
+        if (!sid) return;
+        try {
+          await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(sid)}/run`);
+          location.hash = "history";
+        } catch { /* the digest still delivered to its channels */ }
+      });
+    } catch { /* onAction unsupported on this platform */ }
+  }).catch(() => {});
+}
 
 declare global {
   interface Window {

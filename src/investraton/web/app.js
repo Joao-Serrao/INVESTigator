@@ -345,10 +345,14 @@ async function addSchedule() {
   } catch (e) { toast(e.message, true); }
 }
 function drawSchedules() {
+  const mobile = typeof window !== 'undefined' && window.__platform === 'android';
   const fr = schedMeta.frequencies || ['daily', 'weekly'], cx = schedMeta.complexities || ['standard'];
   const opt = (arr, sel) => arr.map(o => `<option ${o === sel ? 'selected' : ''}>${o}</option>`).join('');
+  const intro = mobile
+    ? `Each schedule becomes a phone reminder ${tip('At its time you get a notification (even with the app closed). Tap it to open the app, run that digest, and see it. Tap “Set phone reminders” after editing.')} at its time. Tap “Set phone reminders” after editing. Add as many as you like — e.g. a daily “urgent” watchlist alert plus a weekly full review.`
+    : `Automatic digests run by Windows Task Scheduler ${tip('Each schedule becomes a Windows task so digests fire even when the app is closed. Click “Sync to Windows” after editing.')}. Add as many as you like — e.g. a daily “urgent” watchlist alert plus a weekly full review.`;
   $('#view').innerHTML = `
-    <div class="card"><div class="sub">Automatic digests run by Windows Task Scheduler ${tip('Each schedule becomes a Windows task so digests fire even when the app is closed. Click “Sync to Windows” after editing.')}. Add as many as you like — e.g. a daily “urgent” watchlist alert plus a weekly full review.</div></div>
+    <div class="card"><div class="sub">${intro}</div></div>
     ${scheds.map((s, i) => `<div class="card">
       <div class="row" style="align-items:center;justify-content:space-between">
         <input data-i="${i}" data-k="name" value="${esc(s.name)}" style="max-width:240px;font-weight:600">
@@ -365,7 +369,7 @@ function drawSchedules() {
       <label style="margin:12px 0 0;display:flex;align-items:center;gap:8px;cursor:pointer;width:fit-content">
         <input type="checkbox" data-i="${i}" data-k="skip_if_empty" ${s.skip_if_empty ? 'checked' : ''} style="width:16px;height:16px;margin:0;flex:none">
         <span>Only send if something was found ${tip('If on, a run with no events/watchlist items is NOT delivered (no empty “quiet is good” email) — it is still saved to History.')}</span></label>
-      <div class="muted small" style="margin-top:8px">${s.id ? 'id ' + s.id : 'unsaved — Sync to register'}</div>
+      <div class="muted small" style="margin-top:8px">${s.id ? 'id ' + s.id : (mobile ? 'unsaved' : 'unsaved — Sync to register')}</div>
     </div>`).join('')}
     ${scheds.length ? '' : '<div class="empty">No schedules yet — click “New schedule”.</div>'}`;
   $('#view').querySelectorAll('input,select').forEach(el => {
