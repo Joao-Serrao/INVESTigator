@@ -60,11 +60,12 @@ async function ensureNotifyPermission(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------- mobile scheduler
-// allowWhileIdle would make the plugin schedule an EXACT alarm, which throws a
-// SecurityException on Android 12+ unless the app holds SCHEDULE_EXACT_ALARM. We
-// keep it false: an inexact reminder (fires within a short window) is right for a
-// digest and needs no special-permission prompt.
-const ALLOW_IDLE = false;
+// MUST be true. Reading the plugin's setExactIfPossible(): on Android 12+ without
+// the exact-alarm permission, allowWhileIdle=true -> setAndAllowWhileIdle (RTC_WAKEUP,
+// fires through Doze, NO special permission), whereas false -> a plain set() that is
+// inexact and DEFERRED until the app/device next wakes (the "only fires when I reopen
+// the app" bug). It does NOT throw — the earlier crash was the cancelAll() bug.
+const ALLOW_IDLE = true;
 
 /** Map a saved schedule (frequency + HH:MM) to a repeating notification schedule.
  * `interval` is calendar-matched (like cron); `every` is a fixed cadence, used for
@@ -170,28 +171,25 @@ async function buildContext(): Promise<AppContext> {
 const ready: Promise<AppContext> = buildContext();
 
 if (IS_MOBILE) {
-  ready.then(async (ctx) => {
-    // Re-register reminders on launch (belt-and-braces; the plugin also restores
-    // them on BOOT_COMPLETED).
-    await applyMobileSchedules();
-    // Tapping a reminder opens the app, runs that schedule (delivering to its
-    // channels), and jumps to History so the result is visible.
-    try {
-      await onAction(async (n) => {
-        const sid = typeof n.extra?.scheduleId === "string" ? n.extra.scheduleId : null;
-        if (sid) {
-          // A schedule reminder: run that digest, then show the result.
-          try {
-            await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(sid)}/run`);
-          } catch { /* it still delivered to its channels */ }
-          location.hash = "history";
-        } else if (n.extra?.view === "history") {
-          // A delivered digest: jump to History to read it.
-          location.hash = "history";
-        }
-      });
-    } catch { /* onAction unsupported on this platform */ }
-  }).catch(() => {});
+  // Register the tap handler as early as possible: when a notification LAUNCHES the
+  // app, the plugin emits "actionPerformed" during load, which can beat a listener
+  // registered after the async DB init. The callback awaits `ready` for the context.
+  onAction(async (n) => {
+    const ctx = await ready;
+    const sid = typeof n.extra?.scheduleId === "string" ? n.extra.scheduleId : null;
+    if (sid) {
+      // A schedule reminder: run that digest (delivering to its channels), show it.
+      try {
+        await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(sid)}/run`);
+      } catch { /* it still delivered to its channels */ }
+      location.hash = "history";
+    } else if (n.extra?.view === "history") {
+      location.hash = "history"; // a delivered digest -> read it in History
+    }
+  }).catch(() => { /* onAction unsupported on this platform */ });
+
+  // Re-register reminders on launch (backstop; the plugin also restores on BOOT).
+  ready.then(() => applyMobileSchedules()).catch(() => {});
 }
 
 declare global {
