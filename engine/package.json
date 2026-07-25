@@ -13,6 +13,7 @@
     "ingest-parity": "node --experimental-strip-types test/ingest-parity.ts",
     "pipeline-parity": "node --experimental-strip-types test/pipeline-parity.ts",
     "service-parity": "node --experimental-strip-types test/service-parity.ts",
+    "mobile-checks": "node --experimental-strip-types test/mobile-checks.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

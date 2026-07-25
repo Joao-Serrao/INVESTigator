@@ -434,13 +434,15 @@ async function renderSettings() {
 }
 function drawSettings() {
   const s = settings, dv = s.delivery || [];
+  // Mobile builds have no local model server and no console; the bridge sets this.
+  const mobile = typeof window !== 'undefined' && window.__platform === 'android';
   const sel = (p) => s.llm_provider === p ? 'selected' : '', chk = (c) => dv.includes(c) ? 'checked' : '';
   $('#view').innerHTML = `<div class="grid">
     <div class="card"><h2>AI narrative brain ${tip('Optional. The app works fully without AI. Ollama is local + free; Claude needs an API key. See the Guide to set up Ollama.')}</h2>
       <div class="sub">Turns the computed numbers into prose. Numbers are always computed in code — the AI never changes them.</div>
       <div class="field"><label>Provider</label><select id="llm">
         <option value="template" ${sel('template')}>Template — no AI, always works</option>
-        <option value="ollama" ${sel('ollama')}>Ollama — local, free, private</option>
+        ${mobile ? '' : `<option value="ollama" ${sel('ollama')}>Ollama — local, free, private</option>`}
         <option value="claude" ${sel('claude')}>Claude — best quality, needs key</option></select></div>
       <div id="ollama-fields" style="display:none">
         <div class="field"><label>Ollama host</label><input id="ohost" value="${esc(s.ollama_host)}"></div>
@@ -449,7 +451,8 @@ function drawSettings() {
         <div class="field"><label>Anthropic API key</label><input id="akey" type="password" value="${s.anthropic_api_key === '********' ? '' : esc(s.anthropic_api_key)}" placeholder="${s.anthropic_api_key === '********' ? 'saved — leave blank to keep' : 'sk-ant-…'}"></div>
         <div class="field"><label>Claude model</label><input id="amodel" value="${esc(s.anthropic_model)}"></div></div></div>
     <div class="card"><h2>Delivery</h2><div class="sub">Where digests go when run.</div>
-      <div class="field"><label><input type="checkbox" id="d-console" ${chk('console')}> Console</label></div>
+      <div class="field"><label><input type="checkbox" id="d-notification" ${chk('notification')}> Notification${mobile ? '' : ' (system popup)'}</label></div>
+      ${mobile ? '' : `<div class="field"><label><input type="checkbox" id="d-console" ${chk('console')}> Console</label></div>`}
       <div class="field"><label><input type="checkbox" id="d-discord" ${chk('discord')}> Discord webhook</label>
         <input id="discord" value="${esc(s.discord_webhook_url)}" placeholder="https://discord.com/api/webhooks/…"></div>
       <div class="field"><label><input type="checkbox" id="d-email" ${chk('email')}> Email (SMTP)</label></div>
@@ -475,7 +478,7 @@ function drawSettings() {
   };
   // Auto-save: selects/checkboxes immediately, text fields debounced.
   $('#llm').addEventListener('change', () => { toggle(); saveSettings(); });
-  ['d-console', 'd-discord', 'd-email'].forEach(id => $('#' + id).addEventListener('change', () => { toggle(); saveSettings(); }));
+  ['d-notification', 'd-console', 'd-discord', 'd-email'].forEach(id => $('#' + id)?.addEventListener('change', () => { toggle(); saveSettings(); }));
   ['ohost', 'omodel', 'akey', 'amodel', 'discord', 'smtp-host', 'smtp-user', 'smtp-pass', 'smtp-to'].forEach(id => {
     const el = $('#' + id); if (el) el.addEventListener('input', () => { setSaved('Saving…'); debouncedSaveSettings(); });
   });
@@ -500,7 +503,7 @@ function drawSources() {
   $('#sources').querySelectorAll('[data-src]').forEach(b => b.addEventListener('click', () => { sources.splice(+b.dataset.src, 1); drawSources(); saveSettings(); }));
 }
 async function saveSettings() {
-  const delivery = ['console', 'discord', 'email'].filter(c => $('#d-' + c).checked);
+  const delivery = ['notification', 'console', 'discord', 'email'].filter(c => $('#d-' + c)?.checked);
   const body = { llm_provider: $('#llm').value, delivery, ollama_host: $('#ohost')?.value, ollama_model: $('#omodel')?.value, anthropic_model: $('#amodel')?.value, discord_webhook_url: $('#discord').value };
   const akey = $('#akey')?.value; if (akey && akey !== '********') body.anthropic_api_key = akey;
   const sm = { host: $('#smtp-host')?.value || '', user: $('#smtp-user')?.value || '', to: $('#smtp-to')?.value || '' };

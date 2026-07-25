@@ -101,10 +101,15 @@ export class ClaudeLlm implements Llm {
   }
 }
 
-/** Pick a provider from settings, falling back to TemplateLlm. */
-export function getLlm(settings: Settings, http: HttpClient): Llm {
+/** Pick a provider from settings, falling back to TemplateLlm.
+ *
+ * `allowLocal` gates Ollama: on mobile there is no local model server, so the app
+ * offers Template or Claude-with-your-key only. A stored `ollama` choice degrades
+ * to Template there rather than failing. */
+export function getLlm(settings: Settings, http: HttpClient, allowLocal = true): Llm {
   try {
     if (settings.llm_provider === "ollama") {
+      if (!allowLocal) return new TemplateLlm();
       return new OllamaLlm(settings.ollama_host, settings.ollama_model, http);
     }
     if (settings.llm_provider === "claude") {

@@ -38,6 +38,9 @@ export interface AppContext {
   paths: Paths;
   store: Store;
   deliver: DeliverContext;
+  /** which build this is. "android" drops Ollama (no local model server) and
+   * makes native notifications the primary delivery channel. Defaults to desktop. */
+  platform?: "desktop" | "android";
   /** injectable clock for tests */
   now?: () => Date;
   /** override ingestion (defaults to the real Stage-3 fetchers) — tests/Android */
@@ -57,12 +60,19 @@ export async function getStatus(ctx: AppContext) {
   const s = await loadSettings(ctx.fs, ctx.paths);
   const holdings = await loadHoldings(ctx.fs, ctx.paths);
   const note = holdings.length ? `manual entry: ${holdings.length} positions` : "manual entry: none";
+  const platform = ctx.platform ?? "desktop";
   return {
     version: VERSION,
     now: (ctx.now ?? (() => new Date()))().toISOString(),
     llm_provider: s.llm_provider,
     delivery: s.delivery,
     holdings_count: holdings.length,
+    platform,
+    // What the settings UI should offer: no local models on mobile.
+    ai_providers: platform === "android" ? ["template", "claude"] : ["template", "ollama", "claude"],
+    delivery_channels: platform === "android"
+      ? ["notification", "email", "discord"]
+      : ["console", "notification", "email", "discord"],
     sources: [note],
     // Python reports optional-library presence; the TS engine's fetch stack is
     // always available, so we report the capabilities that actually gate features.
@@ -338,9 +348,10 @@ export class BadRequest extends Error {
 
 async function deps(ctx: AppContext) {
   const settings = await loadSettings(ctx.fs, ctx.paths);
+  const allowLocal = (ctx.platform ?? "desktop") !== "android"; // no Ollama on mobile
   return {
     store: ctx.store, fs: ctx.fs, http: ctx.http, paths: ctx.paths,
-    settings, llm: getLlm(settings, ctx.http), deliver: ctx.deliver,
+    settings, llm: getLlm(settings, ctx.http, allowLocal), deliver: ctx.deliver,
     now: ctx.now, ingest: ctx.ingest,
   };
 }

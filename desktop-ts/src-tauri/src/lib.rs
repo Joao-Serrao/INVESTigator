@@ -78,6 +78,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_os::init())
         .invoke_handler(tauri::generate_handler![send_email, sync_schedules])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -218,15 +218,31 @@ and it produces `investigator.exe` plus the NSIS and MSI installers. The app rea
 What remains is runtime shakedown on a real machine (first launch on existing data, a live digest,
 SMTP send); Python retires after that.
 
-**Stage 6 — Android.** Delivery keeps email/Discord and gains native notifications (which work
-fully offline — only *fetching* needs the network). AI is **Template or Claude-with-your-key** —
-Ollama is desktop-only.
+**Stage 6 — Android. Engine-side DONE; native build pending toolchain.** Tauri uses one project for
+desktop and Android, so this all extends `desktop-ts/`; the mobile bits activate by runtime platform
+detection (`@tauri-apps/plugin-os` `platform()`), no separate codebase.
 
-Scheduling: use **`AlarmManager.setExactAndAllowWhileIdle()`** (or `setAlarmClock()` for the
-strongest guarantee) — these fire *through* Doze and are what alarm apps use. Do **not** use
-`WorkManager` periodic work for the digest: it is deferrable by design (15-min floor, batched,
-delayed in Doze). Requires the user-grantable `SCHEDULE_EXACT_ALARM` permission on Android 12+,
-and reaching AlarmManager from Tauri needs a small Kotlin plugin.
+Done and verified (`npm run mobile-checks`):
+
+- **Native notifications** — a `notification` delivery channel (`deliver.ts`), injected `Notifier`
+  backed by `tauri-plugin-notification`. This is the offline channel: a digest can fire a
+  notification with no network, no email, no server. `notificationText()` builds the short
+  title/body (the full narrative is far too long for a toast).
+- **No local AI on mobile** — `getLlm(settings, http, allowLocal)` gates Ollama; on Android a stored
+  `ollama` choice degrades to Template. `AppContext.platform` drives it, and `getStatus` reports
+  `ai_providers` / `delivery_channels` so the **shared** UI hides Ollama + Console via `window.__platform`.
+- Both new plugins (`notification`, `os`) register and `cargo check` passes on the existing desktop
+  build, so nothing regressed there.
+
+Remaining (needs the Android toolchain — Java ✓ and SDK ✓ are here, but the **NDK**, the **Rust
+android targets**, and `cmdline-tools` are not):
+
+- `tauri android init` + `tauri android build` (APK).
+- Scheduling: **`AlarmManager.setExactAndAllowWhileIdle()`** (or `setAlarmClock()` for the strongest
+  guarantee) — these fire *through* Doze and are what alarm apps use. Do **not** use `WorkManager`
+  periodic work for the digest: it is deferrable by design (15-min floor, batched, delayed in Doze).
+  Needs the user-grantable `SCHEDULE_EXACT_ALARM` permission on Android 12+, and a small Kotlin Tauri
+  plugin to reach AlarmManager (the `sync_schedules` Rust command is the desktop/mobile seam it wires into).
 
 ## Known losses / risks
 
