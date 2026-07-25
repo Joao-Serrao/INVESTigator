@@ -14,7 +14,7 @@
 import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { openUrl as openInBrowser } from "@tauri-apps/plugin-opener";
-import { appDataDir, resourceDir } from "@tauri-apps/api/path";
+import { dataDir, resourceDir } from "@tauri-apps/api/path";
 import Database from "@tauri-apps/plugin-sql";
 
 import type {
@@ -121,7 +121,10 @@ export interface TauriPlatform {
 /** Resolve paths, open the SQLite database (creating the file if absent), and
  * return the platform bundle the engine's AppContext needs. */
 export async function makeTauriPlatform(): Promise<TauriPlatform> {
-  const home = tauriFs.join(await appDataDir(), "Investraton");
+  // Match the Python app EXACTLY: it stores everything under %APPDATA%\Investraton.
+  // dataDir() is the Roaming AppData root (%APPDATA%) — NOT appDataDir(), which
+  // appends the bundle identifier and would point at an empty per-app folder.
+  const home = tauriFs.join(await dataDir(), "Investraton");
   const resource = await resourceDir();
   await tauriFs.mkdirp(tauriFs.join(home, "data"));
   await tauriFs.mkdirp(tauriFs.join(home, "config"));

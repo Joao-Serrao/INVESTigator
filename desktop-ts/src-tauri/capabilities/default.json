@@ -12,10 +12,13 @@
     "sql:allow-execute",
     "sql:allow-close",
     "fs:default",
-    { "identifier": "fs:allow-read-text-file", "allow": [{ "path": "$APPDATA/Investraton/**" }] },
-    { "identifier": "fs:allow-write-text-file", "allow": [{ "path": "$APPDATA/Investraton/**" }] },
-    { "identifier": "fs:allow-mkdir", "allow": [{ "path": "$APPDATA/Investraton/**" }] },
-    { "identifier": "fs:allow-exists", "allow": [{ "path": "$APPDATA/Investraton/**" }] },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "$DATA/Investraton/**" }, { "path": "$RESOURCE/**" }]
+    },
+    { "identifier": "fs:allow-write-text-file", "allow": [{ "path": "$DATA/Investraton/**" }] },
+    { "identifier": "fs:allow-mkdir", "allow": [{ "path": "$DATA/Investraton/**" }] },
+    { "identifier": "fs:allow-exists", "allow": [{ "path": "$DATA/Investraton/**" }, { "path": "$RESOURCE/**" }] },
     {
       "identifier": "http:default",
       "allow": [{ "url": "https://**" }, { "url": "http://**" }]
