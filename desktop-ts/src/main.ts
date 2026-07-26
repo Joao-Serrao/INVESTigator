@@ -281,6 +281,18 @@ if (IS_MOBILE) {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") runDueSchedules().catch(() => {});
   });
+} else {
+  // Desktop: when a Windows scheduled task launched us as `run-schedule <id>`, the
+  // window stays hidden — run that digest (delivering to its channels) and exit.
+  ready.then(async (ctx) => {
+    const taskId = await invoke<string | null>("pending_scheduled_run").catch(() => null);
+    if (taskId) {
+      try {
+        await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(taskId)}/run`);
+      } catch { /* best effort — nothing to show, we're headless */ }
+      await invoke("exit_app").catch(() => {});
+    }
+  }).catch(() => {});
 }
 
 declare global {

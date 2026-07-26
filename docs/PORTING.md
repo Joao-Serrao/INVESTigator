@@ -264,9 +264,18 @@ Play Store `SCHEDULE_EXACT_ALARM` scrutiny.
 thing left, and it's hard by nature: the engine runs in the WebView, so a background run needs a
 headless WebView/JS service — a much larger, fragile effort. The reminder model is the honest MVP.
 
-Remaining: **runtime validation** of the digest/SMTP paths on-device, and porting **desktop**
-scheduling — the TS desktop app's `sync_schedules` Rust command is still a stub (the Python app does
-the real Windows Task Scheduler work), so that lands when Python retires.
+**Desktop scheduling — ported to Rust.** `sync_schedules` is no longer a stub: `windows_sched` in
+`lib.rs` is a Rust port of `scheduler.py` — each enabled schedule becomes a Task Scheduler task
+(created from UTF-16 XML with `StartWhenAvailable`, via `schtasks` with `CREATE_NO_WINDOW`), and
+stale tasks under the `INVESTigator\` prefix are removed. Crucially, the task runs
+`investigator.exe run-schedule <id>`, and the app handles that arg by staying **hidden** (the main
+window is `visible:false`, shown in `setup()` only for a normal launch) while the frontend runs that
+digest, delivers it, and calls `exit_app` — a headless run of the WebView engine, the desktop answer
+to the "engine lives in the WebView" problem. `cargo check` passes; end-to-end firing needs a real
+Task Scheduler run to confirm.
+
+Remaining: **runtime validation** of the digest/SMTP/scheduling paths, then **retiring Python** once
+the TS desktop app has been lived on.
 
 ## Known losses / risks
 

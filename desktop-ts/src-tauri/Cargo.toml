@@ -29,6 +29,8 @@ tauri-plugin-os = "2"
 # Android. native-tls would need OpenSSL on Android, which can't cross-compile; ring
 # (rustls' backend) already builds here — reqwest pulls it in on desktop too.
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "rustls-tls", "builder", "hostname"] }
+# Local date for the Windows Task Scheduler StartBoundary.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 # Strip the debug build's symbols. The Android debug .so is otherwise ~208MB of
 # DWARF debuginfo, which (uncompressed + 16KB-page-aligned in the APK) balloons the
