@@ -60,6 +60,10 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn.ghost { background: none; }
 .btn:disabled { opacity: .5; cursor: default; }
+/* Unsaved-changes highlight (mobile Schedules "Save & set reminders"). */
+.btn.needs-save { background: var(--amber); border-color: var(--amber); color: #1b1206; font-weight: 650;
+  box-shadow: 0 0 0 3px rgba(255,184,77,.25); }
+.btn.needs-save:hover { filter: brightness(1.06); }
 
 /* Tables */
 table { width: 100%; border-collapse: collapse; }

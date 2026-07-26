@@ -321,26 +321,38 @@ async function savePlan() {
 }
 
 // ---------- Schedules ----------
-let scheds = [], schedMeta = {};
+// Desktop auto-saves each change; MOBILE does not — edits are local until you tap
+// "Set phone reminders", which persists everything (incl. deletes) and arms them.
+let scheds = [], schedMeta = {}, schedDirty = false, deletedSchedIds = [];
+const isMobile = () => typeof window !== 'undefined' && window.__platform === 'android';
 const debouncedSyncSched = debounce(syncSchedules, 1500);
 const debouncedSaveSched = debounce(async (i) => {
   try { await persistSchedule(i); setSaved('Saved ✓'); debouncedSyncSched(); }
   catch (e) { setSaved('Save failed'); toast(e.message, true); }
 }, 700);
+function markSchedDirty() { schedDirty = true; updateSyncButton(); }
+function updateSyncButton() {
+  const btn = $('#sync'); if (!btn) return;
+  if (!isMobile()) { btn.textContent = 'Sync to Windows now'; return; }
+  btn.textContent = schedDirty ? 'Save & set reminders' : 'Set phone reminders';
+  btn.classList.toggle('needs-save', schedDirty);
+}
 async function renderSchedules() {
-  // Desktop syncs to Windows Task Scheduler; mobile sets repeating reminder notifications.
-  const mobile = typeof window !== 'undefined' && window.__platform === 'android';
-  $('#topbar-actions').innerHTML = savedTag + '<button class="btn" id="add">+ New schedule</button>'
+  const mobile = isMobile();
+  $('#topbar-actions').innerHTML = (mobile ? '' : savedTag) + '<button class="btn" id="add">+ New schedule</button>'
     + `<button class="btn primary" id="sync">${mobile ? 'Set phone reminders' : 'Sync to Windows now'}</button>`;
   const data = await api.get('/api/schedules');
-  scheds = data.schedules; schedMeta = data;
+  scheds = data.schedules; schedMeta = data; schedDirty = false; deletedSchedIds = [];
   drawSchedules();
   $('#add').addEventListener('click', addSchedule);
   $('#sync')?.addEventListener('click', syncSchedules);
+  updateSyncButton();
 }
 async function addSchedule() {
+  const blank = { name: 'New digest', frequency: 'weekly', time: '08:00', complexity: 'standard', focus: 'all', delivery: [], skip_if_empty: false, enabled: true };
+  if (isMobile()) { scheds.push(blank); drawSchedules(); markSchedDirty(); return; }
   try {
-    const created = await api.put('/api/schedules', { name: 'New digest', frequency: 'weekly', time: '08:00', complexity: 'standard', focus: 'all', delivery: [], enabled: true });
+    const created = await api.put('/api/schedules', blank);
     scheds.push(created.schedule); drawSchedules(); setSaved('Saved ✓'); debouncedSyncSched();
   } catch (e) { toast(e.message, true); }
 }
@@ -377,11 +389,17 @@ function drawSchedules() {
     const evt = (el.type === 'checkbox' || el.tagName === 'SELECT') ? 'change' : 'input';
     el.addEventListener(evt, () => {
       scheds[el.dataset.i][k] = el.type === 'checkbox' ? el.checked : el.value;
-      setSaved('Saving…'); debouncedSaveSched(+el.dataset.i);
+      if (mobile) markSchedDirty();
+      else { setSaved('Saving…'); debouncedSaveSched(+el.dataset.i); }
     });
   });
   $('#view').querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
-    const s = scheds[+b.dataset.del]; if (s.id) { try { await api.del('/api/schedules/' + s.id); } catch (e) { toast(e.message, true); } }
+    const s = scheds[+b.dataset.del];
+    if (mobile) {
+      if (s.id) deletedSchedIds.push(s.id);
+      scheds.splice(+b.dataset.del, 1); drawSchedules(); markSchedDirty(); return;
+    }
+    if (s.id) { try { await api.del('/api/schedules/' + s.id); } catch (e) { toast(e.message, true); } }
     scheds.splice(+b.dataset.del, 1); drawSchedules(); setSaved('Saved ✓'); debouncedSyncSched();
   }));
   $('#view').querySelectorAll('[data-run]').forEach(b => b.addEventListener('click', () => runScheduleNow(+b.dataset.run, b)));
@@ -401,17 +419,20 @@ async function runScheduleNow(i, btn) {
   } catch (e) { toast(e.message, true); } finally { btn.disabled = false; drawSchedules(); }
 }
 async function syncSchedules() {
-  const mobile = typeof window !== 'undefined' && window.__platform === 'android';
-  const btn = $('#sync'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ' + (mobile ? 'Setting…' : 'Syncing…');
+  const mobile = isMobile();
+  const btn = $('#sync'); btn.disabled = true; btn.classList.remove('needs-save');
+  btn.innerHTML = '<span class="spinner"></span> ' + (mobile ? 'Saving…' : 'Syncing…');
   try {
+    for (const id of deletedSchedIds) { try { await api.del('/api/schedules/' + id); } catch (e) { /* already gone */ } }
+    deletedSchedIds = [];
     for (let i = 0; i < scheds.length; i++) await persistSchedule(i);
     const res = await api.post('/api/schedules/sync');
-    drawSchedules();
+    schedDirty = false; drawSchedules();
     if (res.error) toast(res.error, true);
-    else if (mobile) toast(res.ok ? 'Reminders set on your phone ✓' : 'Set with some issues', !res.ok);
+    else if (mobile) toast(res.ok ? 'Saved & reminders set ✓' : 'Saved with some issues', !res.ok);
     else toast(res.ok ? 'Synced to Windows Task Scheduler ✓' : 'Synced with some issues — see Guide', !res.ok);
   } catch (e) { toast(e.message, true); }
-  finally { btn.disabled = false; btn.textContent = mobile ? 'Set phone reminders' : 'Sync to Windows'; }
+  finally { btn.disabled = false; updateSyncButton(); }
 }
 
 // ---------- History ----------
