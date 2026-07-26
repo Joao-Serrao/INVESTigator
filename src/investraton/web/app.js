@@ -594,5 +594,8 @@ async function renderGuide() {
 
 // ---------- boot ----------
 window.addEventListener('hashchange', () => render(location.hash.slice(1) || 'dashboard'));
+// Programmatic navigation hook for the Tauri bridge (setting location.hash from the
+// bundle doesn't reliably fire hashchange in the Android WebView). Renders directly.
+window.__nav = (v) => { render(VIEWS[v] ? v : 'dashboard'); try { history.replaceState(null, '', '#' + v); } catch {} };
 loadStatus();
 render(location.hash.slice(1) || 'dashboard');

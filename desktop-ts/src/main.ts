@@ -209,7 +209,12 @@ async function runDueSchedules(): Promise<void> {
         ranAny = true;
       } catch { /* try again next open */ }
     }
-    if (ranAny) { await saveRuns(runs); location.hash = "history"; }
+    if (ranAny) {
+      await saveRuns(runs);
+      // Prefer the UI's direct nav hook (hashchange is unreliable in the WebView).
+      if (typeof window.__nav === "function") window.__nav("history");
+      else location.hash = "history";
+    }
   } finally {
     catchingUp = false;
   }
@@ -274,6 +279,7 @@ declare global {
   interface Window {
     __invest?: (method: string, path: string, body?: unknown) => Promise<unknown>;
     __platform?: "desktop" | "android";
+    __nav?: (view: string) => void;
   }
 }
 
