@@ -11,7 +11,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { platform as osPlatform } from "@tauri-apps/plugin-os";
 import {
-  cancel, isPermissionGranted, onAction, pending, requestPermission, sendNotification,
+  cancel, isPermissionGranted, pending, requestPermission, sendNotification,
   Schedule as NotifSchedule, ScheduleEvery,
 } from "@tauri-apps/plugin-notification";
 
@@ -124,20 +124,106 @@ async function applyMobileSchedules(): Promise<{ ok: boolean; error?: string; re
         await sendNotification({
           id: notifIdFor(s.id),
           title: `INVESTigator — ${s.name}`,
-          body: `Your ${s.frequency.replace(/_/g, " ")} digest is due — tap to run it.`,
+          body: `Your ${s.frequency.replace(/_/g, " ")} digest is due — open the app to run it.`,
           schedule: toNotifSchedule(s.frequency, s.time),
-          extra: { scheduleId: s.id }, // so a tap can find + run this schedule
+          extra: { scheduleId: s.id },
         });
         results.push({ name: s.name, ok: true });
       } catch (e) {
         results.push({ name: s.name, ok: false, detail: errText(e) });
       }
     }
+    await baselineNewSchedules(); // so catch-up won't fire retroactively for new ones
     const failed = results.find((r) => !r.ok);
     return { ok: !failed, error: failed?.detail, results };
   } catch (e) {
     return { ok: false, error: errText(e), results: [] };
   }
+}
+
+// ---------------------------------------------------------------- catch-up runner
+// The plugin's notification-tap path can't identify which reminder was tapped
+// (sourceJson is never populated, so the tap payload's `notification` is null),
+// and cold-start taps race the listener. So instead of reacting to the tap, we
+// RUN a schedule the next time the app opens after its time has passed. Combined
+// with the reminder (which nudges the user to open the app), this delivers
+// "reminder -> open -> digest runs -> History" without depending on the tap.
+const RUNS_FILE = "mobile_last_runs.json";
+
+async function loadRuns(): Promise<Record<string, number>> {
+  const { fs, paths } = await platformP;
+  const text = await fs.readText(fs.join(paths.home, "config", RUNS_FILE));
+  if (!text) return {};
+  try { return JSON.parse(text) as Record<string, number>; } catch { return {}; }
+}
+async function saveRuns(runs: Record<string, number>): Promise<void> {
+  const { fs, paths } = await platformP;
+  await fs.mkdirp(fs.join(paths.home, "config"));
+  await fs.writeText(fs.join(paths.home, "config", RUNS_FILE), JSON.stringify(runs));
+}
+
+/** Most recent scheduled datetime <= now (ms); null for the cadence-based every_3_days. */
+function mostRecentOccurrence(freq: string, time: string, now: number): number | null {
+  const [h, m] = (time || "08:00").split(":").map((x) => Number(x) || 0);
+  const at = new Date(now);
+  at.setHours(h, m, 0, 0);
+  if (freq === "daily") {
+    if (at.getTime() > now) at.setDate(at.getDate() - 1);
+    return at.getTime();
+  }
+  if (freq === "weekly") {
+    at.setDate(at.getDate() - ((at.getDay() + 6) % 7)); // back to Monday
+    if (at.getTime() > now) at.setDate(at.getDate() - 7);
+    return at.getTime();
+  }
+  if (freq === "monthly") {
+    at.setDate(1);
+    if (at.getTime() > now) at.setMonth(at.getMonth() - 1);
+    return at.getTime();
+  }
+  return null;
+}
+
+let catchingUp = false;
+/** Run any enabled schedule whose time has passed since we last ran it. */
+async function runDueSchedules(): Promise<void> {
+  if (catchingUp) return;
+  catchingUp = true;
+  try {
+    const ctx = await ready;
+    const { fs, paths } = await platformP;
+    const scheds = await loadSchedules(fs, paths);
+    const runs = await loadRuns();
+    const now = Date.now();
+    let ranAny = false;
+    for (const s of scheds) {
+      if (!s.enabled) continue;
+      const last = runs[s.id] ?? 0;
+      const due = s.frequency === "every_3_days"
+        ? last > 0 && now - last >= 3 * 86_400_000
+        : (() => { const o = mostRecentOccurrence(s.frequency, s.time, now); return o !== null && o > last; })();
+      if (!due) continue;
+      try {
+        await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(s.id)}/run`);
+        runs[s.id] = now;
+        ranAny = true;
+      } catch { /* try again next open */ }
+    }
+    if (ranAny) { await saveRuns(runs); location.hash = "history"; }
+  } finally {
+    catchingUp = false;
+  }
+}
+
+/** Baseline lastRun=now for brand-new schedules so catch-up doesn't fire for times
+ * that already passed before the schedule existed. */
+async function baselineNewSchedules(): Promise<void> {
+  const { fs, paths } = await platformP;
+  const scheds = await loadSchedules(fs, paths);
+  const runs = await loadRuns();
+  let changed = false;
+  for (const s of scheds) if (s.enabled && !(s.id in runs)) { runs[s.id] = Date.now(); changed = true; }
+  if (changed) await saveRuns(runs);
 }
 
 async function buildContext(): Promise<AppContext> {
@@ -171,31 +257,17 @@ async function buildContext(): Promise<AppContext> {
 const ready: Promise<AppContext> = buildContext();
 
 if (IS_MOBILE) {
-  // Register the tap handler as early as possible: when a notification LAUNCHES the
-  // app, the plugin emits "actionPerformed" during load, which can beat a listener
-  // registered after the async DB init. The callback awaits `ready` for the context.
-  //
-  // The payload is the action wrapper { actionId, notification, inputValue } — the
-  // notification (with our `extra`) is NESTED under `.notification`, not on the
-  // payload itself. Handle either shape defensively.
-  onAction(async (payload) => {
-    const p = payload as { extra?: Record<string, unknown>; notification?: { extra?: Record<string, unknown> } };
-    const extra = p.notification?.extra ?? p.extra ?? {};
-    const ctx = await ready;
-    const sid = typeof extra.scheduleId === "string" ? extra.scheduleId : null;
-    if (sid) {
-      // A schedule reminder: run that digest (delivering to its channels), show it.
-      try {
-        await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(sid)}/run`);
-      } catch { /* it still delivered to its channels */ }
-      location.hash = "history";
-    } else if (extra.view === "history") {
-      location.hash = "history"; // a delivered digest -> read it in History
-    }
-  }).catch(() => { /* onAction unsupported on this platform */ });
-
-  // Re-register reminders on launch (backstop; the plugin also restores on BOOT).
-  ready.then(() => applyMobileSchedules()).catch(() => {});
+  // On launch: re-arm reminders (backstop; the plugin also restores on BOOT), then
+  // run anything already due. On every foreground (incl. opening via a reminder tap):
+  // run due schedules. This is what makes "reminder -> open -> digest runs -> History"
+  // work without relying on the plugin's unusable tap payload.
+  ready.then(async () => {
+    await applyMobileSchedules();
+    await runDueSchedules();
+  }).catch(() => {});
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") runDueSchedules().catch(() => {});
+  });
 }
 
 declare global {
