@@ -418,7 +418,11 @@ async function syncSchedules() {
 async function renderHistory() {
   const data = await api.get('/api/history');
   const list = data.history || [];
-  $('#view').innerHTML = `
+  const running = (typeof window !== 'undefined' && window.__digestRunning) || 0;
+  const banner = running
+    ? `<div class="card" style="border-color:var(--accent)"><div class="row" style="align-items:center;gap:10px"><span class="spinner"></span> <strong>Running your scheduled digest…</strong></div><div class="sub" style="margin-top:6px">Fetching the latest prices &amp; news — it’ll appear below in a few seconds.</div></div>`
+    : '';
+  $('#view').innerHTML = `${banner}
     <div class="card"><h2>Previous digests ${tip('Every digest you generate, and every one a schedule delivers, is saved here (last 200). Click one to reopen it.')}</h2>
       <div class="sub">A timeline of what INVESTigator has surfaced for you.</div>
       <div id="hist-list">${list.length ? list.map(histRow).join('') : '<div class="empty">No digests yet — run one from the Dashboard.</div>'}</div></div>

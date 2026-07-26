@@ -184,6 +184,11 @@ function mostRecentOccurrence(freq: string, time: string, now: number): number |
   return null;
 }
 
+const navHistory = () => {
+  if (typeof window.__nav === "function") window.__nav("history");
+  else location.hash = "history";
+};
+
 let catchingUp = false;
 /** Run any enabled schedule whose time has passed since we last ran it. */
 async function runDueSchedules(): Promise<void> {
@@ -195,26 +200,29 @@ async function runDueSchedules(): Promise<void> {
     const scheds = await loadSchedules(fs, paths);
     const runs = await loadRuns();
     const now = Date.now();
-    let ranAny = false;
-    for (const s of scheds) {
-      if (!s.enabled) continue;
+    const due = scheds.filter((s) => {
+      if (!s.enabled) return false;
       const last = runs[s.id] ?? 0;
-      const due = s.frequency === "every_3_days"
+      return s.frequency === "every_3_days"
         ? last > 0 && now - last >= 3 * 86_400_000
         : (() => { const o = mostRecentOccurrence(s.frequency, s.time, now); return o !== null && o > last; })();
-      if (!due) continue;
+    });
+    if (due.length === 0) return;
+
+    // Jump to History with a "running" banner FIRST, so it feels instant; the digest
+    // (network fetch) then fills in and we refresh History to show the result.
+    window.__digestRunning = due.length;
+    navHistory();
+    for (const s of due) {
       try {
         await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(s.id)}/run`);
         runs[s.id] = now;
-        ranAny = true;
       } catch { /* try again next open */ }
+      window.__digestRunning = Math.max(0, (window.__digestRunning ?? 1) - 1);
     }
-    if (ranAny) {
-      await saveRuns(runs);
-      // Prefer the UI's direct nav hook (hashchange is unreliable in the WebView).
-      if (typeof window.__nav === "function") window.__nav("history");
-      else location.hash = "history";
-    }
+    await saveRuns(runs);
+    window.__digestRunning = 0;
+    navHistory(); // re-render: banner gone, new entry present
   } finally {
     catchingUp = false;
   }
@@ -280,6 +288,7 @@ declare global {
     __invest?: (method: string, path: string, body?: unknown) => Promise<unknown>;
     __platform?: "desktop" | "android";
     __nav?: (view: string) => void;
+    __digestRunning?: number;
   }
 }
 
