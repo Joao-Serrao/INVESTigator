@@ -264,6 +264,90 @@ export async function putSources(ctx: AppContext, sources: SourceIn[]) {
   return { saved: sources.length };
 }
 
+// ---------------------------------------------------------------- backup / transfer
+export interface ExportBundle {
+  app: "INVESTigator";
+  version: 1;
+  exported_at: string;
+  holdings: HoldingIn[];
+  plan: PlanIn;
+  settings: Record<string, unknown>;
+  schedules: Schedule[];
+}
+
+/** A portable snapshot of everything the user typed in — for moving between
+ * desktop and phone. Excludes the two true secrets (API key, SMTP password) so the
+ * file isn't a password leak; everything else (holdings, plan, watchlist, delivery
+ * config, sources, schedules) carries over. */
+export async function exportData(ctx: AppContext): Promise<ExportBundle> {
+  const holdings = await loadHoldings(ctx.fs, ctx.paths);
+  const plan = await loadPlan(ctx.fs, ctx.paths);
+  const app = await loadAppSettings(ctx.fs, ctx.paths);
+  const schedules = await loadSchedules(ctx.fs, ctx.paths);
+  const settings: Record<string, unknown> = { ...app };
+  delete settings.anthropic_api_key;
+  if (settings.smtp && typeof settings.smtp === "object") {
+    settings.smtp = { ...(settings.smtp as Record<string, unknown>) };
+    delete (settings.smtp as Record<string, unknown>).password;
+  }
+  return {
+    app: "INVESTigator",
+    version: 1,
+    exported_at: (ctx.now ?? (() => new Date()))().toISOString(),
+    holdings: holdings.map((h) => ({
+      ticker: h.ticker, name: h.name, type: h.type,
+      amount_invested_eur: h.amount_invested_eur || null, avg_cost: h.avg_cost || null,
+      strategy_tag: h.strategy_tag, isin: h.isin,
+    })),
+    plan: {
+      profile: plan.profile, monthly_contribution_eur: plan.monthly_contribution_eur,
+      allocation_targets: plan.allocation_targets, watchlist: plan.watchlist, thresholds: plan.thresholds,
+    },
+    settings,
+    schedules,
+  };
+}
+
+/** Apply an exported bundle, overwriting holdings/plan/schedules and merging
+ * settings (kept secrets are preserved when the bundle omits them). */
+export async function importData(ctx: AppContext, bundle: unknown) {
+  const b = bundle as Partial<ExportBundle> | null;
+  if (!b || b.app !== "INVESTigator") throw new BadRequest("Not an INVESTigator backup file.");
+  const done = { holdings: 0, plan: false, settings: false, schedules: 0 };
+
+  if (Array.isArray(b.holdings)) {
+    await putHoldings(ctx, b.holdings);
+    done.holdings = b.holdings.length;
+  }
+  if (b.plan && typeof b.plan === "object") {
+    await putPlan(ctx, b.plan);
+    done.plan = true;
+  }
+  if (b.settings && typeof b.settings === "object") {
+    const current = await loadAppSettings(ctx.fs, ctx.paths);
+    const incoming = b.settings as Record<string, unknown>;
+    const merged: Record<string, unknown> = { ...current, ...incoming };
+    // Preserve existing secrets when the bundle (deliberately) omits them.
+    if (!incoming.anthropic_api_key && current.anthropic_api_key) {
+      merged.anthropic_api_key = current.anthropic_api_key;
+    }
+    if (incoming.smtp && typeof incoming.smtp === "object") {
+      const inSmtp = { ...(incoming.smtp as Record<string, unknown>) };
+      const curSmtp = (current.smtp as Record<string, unknown>) ?? {};
+      if (!inSmtp.password && curSmtp.password) inSmtp.password = curSmtp.password;
+      merged.smtp = inSmtp;
+    }
+    await saveAppSettings(ctx.fs, ctx.paths, merged);
+    done.settings = true;
+  }
+  if (Array.isArray(b.schedules)) {
+    await saveSchedules(ctx.fs, ctx.paths, b.schedules.map(normaliseSchedule));
+    done.schedules = b.schedules.length;
+    await (ctx.syncTasks ?? notSupportedSync)(); // re-arm reminders / OS tasks
+  }
+  return { imported: done };
+}
+
 // ---------------------------------------------------------------- schedules
 export async function getSchedules(ctx: AppContext) {
   return {

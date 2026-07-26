@@ -334,6 +334,83 @@ def post_run(sched_id: str):
         raise HTTPException(404, str(e))
 
 
+# ---------- backup / transfer (desktop <-> phone) ----------
+@app.get("/api/export")
+def export_data():
+    s = load_settings()
+    holdings, _ = load_all_holdings(s, load_plan())
+    p = load_plan()
+    settings = dict(load_app_settings())
+    settings.pop("anthropic_api_key", None)  # don't put secrets in a portable file
+    if isinstance(settings.get("smtp"), dict):
+        settings["smtp"] = {k: v for k, v in settings["smtp"].items() if k != "password"}
+    return {
+        "app": "INVESTigator", "version": 1, "exported_at": utcnow().isoformat(),
+        "holdings": [
+            {"ticker": h.ticker, "name": h.name, "type": h.type,
+             "amount_invested_eur": h.amount_invested_eur or None, "avg_cost": h.avg_cost or None,
+             "strategy_tag": h.strategy_tag, "isin": h.isin}
+            for h in holdings
+        ],
+        "plan": {"profile": p.profile, "monthly_contribution_eur": p.monthly_contribution_eur,
+                 "allocation_targets": p.allocation_targets, "watchlist": p.watchlist,
+                 "thresholds": asdict(p.thresholds)},
+        "settings": settings,
+        "schedules": load_schedules(),
+    }
+
+
+class ImportBundle(BaseModel):
+    app: str = ""
+    holdings: list = []
+    plan: dict = {}
+    settings: dict = {}
+    schedules: list = []
+
+
+@app.post("/api/import")
+def import_data(bundle: ImportBundle):
+    if bundle.app != "INVESTigator":
+        raise HTTPException(400, "Not an INVESTigator backup file.")
+    s = load_settings()
+    done = {"holdings": 0, "plan": False, "settings": False, "schedules": 0}
+    if bundle.holdings:
+        save_holdings_csv(s.holdings_csv, bundle.holdings)
+        done["holdings"] = len(bundle.holdings)
+    if bundle.plan:
+        save_plan({
+            "profile": bundle.plan.get("profile", {}),
+            "plan": {"monthly_contribution_eur": bundle.plan.get("monthly_contribution_eur", 0),
+                     "allocation_targets": bundle.plan.get("allocation_targets", {}),
+                     "watchlist": bundle.plan.get("watchlist", [])},
+            "thresholds": bundle.plan.get("thresholds", {}),
+        })
+        done["plan"] = True
+    if bundle.settings:
+        current = load_app_settings()
+        incoming = dict(bundle.settings)
+        merged = {**current, **incoming}
+        if not incoming.get("anthropic_api_key") and current.get("anthropic_api_key"):
+            merged["anthropic_api_key"] = current["anthropic_api_key"]
+        if isinstance(incoming.get("smtp"), dict):
+            in_smtp = dict(incoming["smtp"])
+            cur_smtp = current.get("smtp") or {}
+            if not in_smtp.get("password") and cur_smtp.get("password"):
+                in_smtp["password"] = cur_smtp["password"]
+            merged["smtp"] = in_smtp
+        save_app_settings(merged)
+        done["settings"] = True
+    if bundle.schedules:
+        from .scheduler import _normalise, save_schedules
+        save_schedules([_normalise(x) for x in bundle.schedules])
+        done["schedules"] = len(bundle.schedules)
+        try:
+            sync_windows_tasks()
+        except Exception:  # noqa: BLE001
+            pass
+    return {"imported": done}
+
+
 @app.get("/api/open")
 def open_url(url: str):
     """Open a URL in the user's default browser (webviews ignore target=_blank, so

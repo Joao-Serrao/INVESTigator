@@ -490,8 +490,21 @@ function drawSettings() {
       <div class="row" style="margin-top:8px">
         <select id="src-type" style="max-width:110px"><option value="domain">domain</option><option value="rss">rss feed</option></select>
         <input id="src-val" placeholder="ft.com  or  https://site.com/rss" style="max-width:280px"><button class="btn" id="src-add">Add</button></div></div>
+    <div class="card"><h2>Backup &amp; transfer ${tip('Move your setup between desktop and phone. Export a file here, copy it to the other device, then Import it there. The file does NOT contain your API key or email password — re-enter those once on the new device.')}</h2>
+      <div class="sub">Carry your holdings, plan, watchlist, sources and schedules between devices.</div>
+      <div class="row">
+        <button class="btn" id="exp-btn">⬇ Export to file</button>
+        <button class="btn" id="imp-btn">⬆ Import from file</button>
+      </div>
+      <div class="field" style="margin-top:10px"><label>Or copy/paste the backup text ${tip('If the file download/pick doesn’t work on your device, use this: Copy on one device, paste + Apply on the other.')}</label>
+        <textarea id="exp-text" style="width:100%;min-height:70px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:12px" placeholder="Backup text appears here after Export, or paste one here and tap Apply."></textarea>
+        <div class="row" style="margin-top:6px"><button class="btn ghost" id="exp-copy">Copy</button><button class="btn ghost" id="imp-paste">Apply pasted text</button></div></div></div>
   </div>`;
   drawSources();
+  $('#exp-btn').addEventListener('click', exportBackup);
+  $('#imp-btn').addEventListener('click', importBackupFile);
+  $('#exp-copy').addEventListener('click', () => { const t = $('#exp-text'); t.select(); try { navigator.clipboard.writeText(t.value); } catch { document.execCommand('copy'); } toast('Copied ✓'); });
+  $('#imp-paste').addEventListener('click', () => { const v = $('#exp-text').value.trim(); if (v) applyBackup(v); });
   const toggle = () => {
     $('#ollama-fields').style.display = $('#llm').value === 'ollama' ? '' : 'none';
     $('#claude-fields').style.display = $('#llm').value === 'claude' ? '' : 'none';
@@ -522,6 +535,45 @@ function drawSettings() {
 function drawSources() {
   $('#sources').innerHTML = sources.map((s, i) => `<span class="chip">${esc(s.type)}: ${esc(s.value)}<button data-src="${i}">✕</button></span>`).join('') || '<span class="muted small">Using defaults only (Google News + Yahoo).</span>';
   $('#sources').querySelectorAll('[data-src]').forEach(b => b.addEventListener('click', () => { sources.splice(+b.dataset.src, 1); drawSources(); saveSettings(); }));
+}
+
+// ---------- Backup / transfer ----------
+async function exportBackup() {
+  try {
+    const data = await api.get('/api/export');
+    const json = JSON.stringify(data, null, 2);
+    if ($('#exp-text')) $('#exp-text').value = json;
+    try { // file download — reliable on desktop; some mobile webviews block blob downloads
+      const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = `investigator-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch { /* fall back to the copy/paste box */ }
+    toast('Exported ✓ — save the file (or Copy the text), then Import it on the other device');
+  } catch (e) { toast('Export failed: ' + e.message, true); }
+}
+function importBackupFile() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'application/json,.json,text/plain';
+  input.onchange = async () => {
+    const f = input.files && input.files[0]; if (!f) return;
+    try { await applyBackup(await f.text()); } catch (e) { toast('Could not read file: ' + e.message, true); }
+  };
+  input.click();
+}
+async function applyBackup(text) {
+  let bundle;
+  try { bundle = JSON.parse(text); } catch { toast('That is not a valid backup (bad JSON)', true); return; }
+  try {
+    const res = await api.post('/api/import', bundle);
+    const d = res.imported || {};
+    toast(`Imported ✓ — ${d.holdings || 0} holdings, plan ${d.plan ? '✓' : '—'}, ${d.schedules || 0} schedules.\nRe-enter your API key / email password if you use them.`);
+    settings = await api.get('/api/settings');
+    sources = (await api.get('/api/sources')).sources || [];
+    loadStatus();
+    drawSettings();
+  } catch (e) { toast('Import failed: ' + e.message, true); }
 }
 async function saveSettings() {
   const delivery = ['notification', 'console', 'discord', 'email'].filter(c => $('#d-' + c)?.checked);

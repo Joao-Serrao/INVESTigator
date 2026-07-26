@@ -82,6 +82,8 @@ async function dispatch(
     case "PUT /api/schedules":
       return svc.putSchedule(ctx, (body ?? {}) as Parameters<typeof svc.putSchedule>[1]);
     case "POST /api/schedules/sync": return svc.syncSchedules(ctx);
+    case "GET /api/export": return svc.exportData(ctx);
+    case "POST /api/import": return svc.importData(ctx, body);
     case "GET /api/open": return svc.openUrl(ctx, query.get("url") ?? "");
     case "POST /api/test-email": return svc.testEmail(ctx);
     default:
