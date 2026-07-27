@@ -114,12 +114,14 @@
     <h2>Get started</h2>
     <p style="color:var(--muted)">Install, add what you own (just a ticker is enough), and hit
       <em>Run digest</em>. Everything else is optional.</p>
-    <pre># or run from source
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[app]"
-.\.venv\Scripts\python.exe -m investraton app</pre>
-    <p style="color:var(--muted);font-size:14px">All data sources are free and public: yfinance for prices,
-      Google News &amp; Yahoo RSS for news, and iShares' daily holdings files for ETF look-through.</p>
+    <pre># or run from source (Rust + Node + MSVC build tools)
+cd desktop-ts
+npm install
+npm run tauri dev        # desktop
+npm run tauri build      # Windows installers</pre>
+    <p style="color:var(--muted);font-size:14px">A pure-TypeScript engine in a Tauri 2 shell — same code on
+      Windows &amp; Android, no server, no Python. All data sources are free and public: Yahoo Finance for
+      prices, Google News &amp; Yahoo RSS for news, and iShares' daily holdings files for ETF look-through.</p>
   </section>
 
   <section>

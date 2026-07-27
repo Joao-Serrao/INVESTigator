@@ -2,13 +2,10 @@
  * engine) to a single classic script, then assemble a self-contained web/ dir from
  * the canonical UI so Tauri has one folder to ship.
  *
- *   web/bundle.js  <- esbuild(src/main.ts)              (IIFE, no imports)
- *   web/index.html <- ../src/investraton/web/index.html + a <script> for bundle.js
- *   web/app.js     <- ../src/investraton/web/app.js     (the SHARED, unmodified UI)
- *   web/style.css  <- ../src/investraton/web/style.css
- *
- * Keeping the UI canonical (copied, never forked) is the whole point: the same
- * app.js runs against the Python server and against this bridge.
+ *   web/bundle.js  <- esbuild(src/main.ts)   (IIFE, no imports)
+ *   web/index.html <- ../web/index.html + a <script> for bundle.js
+ *   web/app.js     <- ../web/app.js          (the canonical vanilla-JS UI)
+ *   web/style.css  <- ../web/style.css
  */
 
 import { build } from "esbuild";
@@ -17,7 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const WEB_SRC = join(HERE, "..", "src", "investraton", "web");
+const WEB_SRC = join(HERE, "..", "web");
 const OUT = join(HERE, "web");
 
 mkdirSync(OUT, { recursive: true });

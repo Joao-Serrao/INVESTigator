@@ -1,42 +1,19 @@
-# Secrets & local config
+# Secrets & local dev data. The shipped apps store everything in
+# %APPDATA%\Investraton at runtime; these repo-root files are leftover dev data.
 .env
 config/portfolio_plan.yaml
 config/app_settings.json
 config/schedules.json
-data/holdings.csv
+data/
 
-# Local data store
-data/*.db
-data/*.sqlite
-data/*.sqlite3
-
-# Cached ETF compositions (refetched from the free iShares feed)
-data/etf_holdings/
-
-# Python
+# deps / local envs (leftover Python venv — retired, not committed)
+node_modules/
 .venv/
 __pycache__/
 *.pyc
-*.egg-info/
-.pytest_cache/
-build/
-dist/
 
 # OS / editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-
-# Parity fixtures are generated from REAL local holdings — never commit them.
-# Regenerate with: python engine/test/make_fixtures.py
-engine/test/fixtures/
-
-# Packaging / desktop build artifacts
-packaging/build/
-packaging/dist/
-packaging/*.spec
-desktop/src-tauri/target/
-desktop/src-tauri/binaries/
-desktop/src-tauri/gen/
-node_modules/

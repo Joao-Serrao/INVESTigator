@@ -1,18 +1,13 @@
 {
   "name": "@investigator/engine",
   "version": "0.1.0",
-  "description": "INVESTigator intelligence engine (TypeScript port) — pure, deterministic logic.",
+  "description": "INVESTigator intelligence engine (TypeScript) — pure, deterministic logic.",
   "type": "module",
   "private": true,
   "exports": {
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "parity": "node --experimental-strip-types test/parity.ts",
-    "storage-parity": "node --experimental-strip-types test/storage-parity.ts",
-    "ingest-parity": "node --experimental-strip-types test/ingest-parity.ts",
-    "pipeline-parity": "node --experimental-strip-types test/pipeline-parity.ts",
-    "service-parity": "node --experimental-strip-types test/service-parity.ts",
     "mobile-checks": "node --experimental-strip-types test/mobile-checks.ts",
     "typecheck": "tsc --noEmit"
   },

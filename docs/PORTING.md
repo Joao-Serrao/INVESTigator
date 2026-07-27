@@ -1,6 +1,13 @@
 # Porting the engine to TypeScript (desktop + Android)
 
-Goal: replace the Python/PyInstaller sidecar with a TypeScript engine running inside the
+> **✅ Complete — Python retired.** The engine is now pure TypeScript running in a Tauri WebView on
+> Windows and Android; the desktop app builds and runs on real data (incl. Windows Task Scheduler),
+> the Android APK builds and runs. The Python engine, the PyInstaller-sidecar desktop app, and the
+> parity harnesses that verified the port have been removed — git history preserves them, and the
+> verification results are recorded below (all suites: 0 mismatches). This doc is kept as the record
+> of how the port was done and why it's safe.
+
+Goal was: replace the Python/PyInstaller sidecar with a TypeScript engine running inside the
 Tauri webview, so one codebase targets **Windows and Android** (and macOS/Linux/iOS).
 
 ## The rule that makes this safe

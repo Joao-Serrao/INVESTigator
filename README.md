@@ -1,17 +1,17 @@
 <div align="center">
 
-<img src="desktop/src-tauri/icons/128x128.png" width="96" alt="INVESTigator" />
+<img src="desktop-ts/src-tauri/icons/128x128.png" width="96" alt="INVESTigator" />
 
 # INVESTigator
 
-**A personal investment intelligence desktop app — a context amplifier for your own thinking, not a trading assistant.**
+**A personal investment intelligence app for desktop & Android — a context amplifier for your own thinking, not a trading assistant.**
 
 It watches what you actually own, decodes what's really inside your ETFs, and sends you a calm,
 noise-filtered briefing that explains *why each thing matters to you*. It never says buy or sell.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
-![Python](https://img.shields.io/badge/python-3.11-3776AB)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-lightgrey)
+![TypeScript](https://img.shields.io/badge/engine-TypeScript-3178C6)
 ![Tauri](https://img.shields.io/badge/shell-Tauri%202-24C8DB)
 [![Buy me a coffee](https://img.shields.io/badge/☕-Buy%20me%20a%20coffee-FFDD00)](https://buymeacoffee.com/joao.serrao)
 
@@ -43,7 +43,8 @@ figures or giving advice.
   touch *your* capital, deduplicated, and capped so one busy stock can't flood the digest.
 - **Watchlist / discovery** — a separate "On your radar" section for things you don't own yet.
 - **Automatic digests** — multiple schedules (daily/weekly/monthly), each with its own complexity and
-  focus, run by Windows Task Scheduler. Missed runs fire on next power-on.
+  focus. On desktop they run via Windows Task Scheduler (missed runs fire on next power-on); on Android
+  a reminder fires at the set time and the digest runs when you open the app.
 - **Delivery** — console, Discord webhook, or email. Optionally skip sending when nothing was found.
 - **History** — every digest is saved and re-openable.
 
@@ -76,10 +77,13 @@ figures or giving advice.
 
 ## Install
 
-Grab the latest **`INVESTigator_x64-setup.exe`** from [Releases](../../releases) and run it.
-Windows SmartScreen may warn because the build isn't code-signed — *More info → Run anyway*.
+- **Windows** — grab the latest **`INVESTigator_x64-setup.exe`** from [Releases](../../releases) and run
+  it. SmartScreen may warn because the build isn't code-signed — *More info → Run anyway*. Your data
+  lives in `%APPDATA%\Investraton` (holdings, settings, database); nothing is uploaded.
+- **Android** — install the APK from [Releases](../../releases) (allow "install unknown apps"). It
+  starts empty; use **Settings → Backup & transfer** to import a backup exported from desktop.
 
-Your data lives in `%APPDATA%\Investraton` (holdings, settings, database). Nothing is uploaded.
+Both run the exact same TypeScript engine.
 
 ## First run
 
@@ -100,41 +104,33 @@ The in-app **Guide** explains every field, plus how to set up Ollama, email, and
 | **Ollama** | Free, local, private prose. Install Ollama, pull a model, select it. |
 | **Claude** | Best writing quality. Bring your own API key. |
 
-Whatever you choose, the figures come from the engine — never the model.
+Whatever you choose, the figures come from the engine — never the model. (Ollama is desktop-only;
+on Android it's Template or Claude.)
 
-## Build from source
+## How it's built
 
-Requires Python 3.11+, Rust, Node, and MSVC Build Tools.
+The whole intelligence engine is **pure TypeScript** ([`engine/`](engine)) — deterministic,
+dependency-light logic with no runtime backend. It runs directly inside a **Tauri 2** WebView
+([`desktop-ts/`](desktop-ts)) on both Windows and Android; the same engine, the same vanilla-JS UI
+([`web/`](web)), only the platform adapter differs. There is no server and no Python.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[app]"
+Requires Rust, Node, and MSVC Build Tools (plus the Android SDK/NDK for the mobile target).
 
-# run the app locally (http://127.0.0.1:8765)
-.\.venv\Scripts\python.exe -m investraton app
-
-# build the distributable installer
-powershell -ExecutionPolicy Bypass -File packaging\build.ps1
+```bash
+cd desktop-ts
+npm install
+npm run tauri dev                         # run the desktop app
+npm run tauri build                       # Windows installers (NSIS + MSI)
+npm run tauri -- android build --apk      # Android APK (see desktop-ts/README.md)
 ```
 
-Architecture and packaging details: [docs/PACKAGING.md](docs/PACKAGING.md).
-
-<details>
-<summary><b>CLI</b></summary>
-
-```powershell
-python -m investraton doctor      # config / health check
-python -m investraton holdings    # positions + weights
-python -m investraton structure   # look-through, concentration, plan drift
-python -m investraton digest      # full run -> deliver
-python -m investraton schedules   # list / sync scheduled digests
-```
-</details>
+Build details: [desktop-ts/README.md](desktop-ts/README.md). How the engine was ported from an
+earlier Python implementation (and verified for exact output parity): [docs/PORTING.md](docs/PORTING.md).
 
 ## Data sources
 
-All free and public: **yfinance** (prices), **Google News + Yahoo RSS** (news, plus any site or feed
-you add), **iShares** daily holdings files (ETF look-through). No paid APIs, no broker connection —
+All free and public: **Yahoo Finance** (prices), **Google News + Yahoo RSS** (news, plus any site or
+feed you add), **iShares** daily holdings files (ETF look-through). No paid APIs, no broker connection —
 XTB discontinued its API and Degiro never had one, so holdings are entered by you and enriched here.
 
 ## Disclaimer
