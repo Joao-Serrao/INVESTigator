@@ -81,6 +81,8 @@ async function dispatch(
     case "GET /api/schedules": return svc.getSchedules(ctx);
     case "PUT /api/schedules":
       return svc.putSchedule(ctx, (body ?? {}) as Parameters<typeof svc.putSchedule>[1]);
+    case "POST /api/schedules/run-now":
+      return svc.runScheduleAdhoc(ctx, (body ?? {}) as Parameters<typeof svc.runScheduleAdhoc>[1]);
     case "POST /api/schedules/sync": return svc.syncSchedules(ctx);
     case "GET /api/export": return svc.exportData(ctx);
     case "POST /api/import": return svc.importData(ctx, body);

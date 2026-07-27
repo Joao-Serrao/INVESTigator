@@ -150,6 +150,17 @@ async function applyMobileSchedules(): Promise<{ ok: boolean; error?: string; re
 // "reminder -> open -> digest runs -> History" without depending on the tap.
 const RUNS_FILE = "mobile_last_runs.json";
 
+// Serialize every read-modify-write of the runs file. runDueSchedules (fired on
+// visibilitychange) and baselineNewSchedules (launch / save / import) both do
+// load -> mutate -> save; without a lock one clobbers the other, so a due schedule
+// runs twice or its baseline is lost and it fires retroactively.
+let runsLock: Promise<unknown> = Promise.resolve();
+function withRunsLock<T>(fn: () => Promise<T>): Promise<T> {
+  const next = runsLock.then(fn, fn);
+  runsLock = next.then(() => {}, () => {});
+  return next;
+}
+
 async function loadRuns(): Promise<Record<string, number>> {
   const { fs, paths } = await platformP;
   const text = await fs.readText(fs.join(paths.home, "config", RUNS_FILE));
@@ -195,34 +206,36 @@ async function runDueSchedules(): Promise<void> {
   if (catchingUp) return;
   catchingUp = true;
   try {
-    const ctx = await ready;
-    const { fs, paths } = await platformP;
-    const scheds = await loadSchedules(fs, paths);
-    const runs = await loadRuns();
-    const now = Date.now();
-    const due = scheds.filter((s) => {
-      if (!s.enabled) return false;
-      const last = runs[s.id] ?? 0;
-      return s.frequency === "every_3_days"
-        ? last > 0 && now - last >= 3 * 86_400_000
-        : (() => { const o = mostRecentOccurrence(s.frequency, s.time, now); return o !== null && o > last; })();
-    });
-    if (due.length === 0) return;
+    await withRunsLock(async () => {
+      const ctx = await ready;
+      const { fs, paths } = await platformP;
+      const scheds = await loadSchedules(fs, paths);
+      const runs = await loadRuns();
+      const now = Date.now();
+      const due = scheds.filter((s) => {
+        if (!s.enabled) return false;
+        const last = runs[s.id] ?? 0;
+        return s.frequency === "every_3_days"
+          ? last > 0 && now - last >= 3 * 86_400_000
+          : (() => { const o = mostRecentOccurrence(s.frequency, s.time, now); return o !== null && o > last; })();
+      });
+      if (due.length === 0) return;
 
-    // Jump to History with a "running" banner FIRST, so it feels instant; the digest
-    // (network fetch) then fills in and we refresh History to show the result.
-    window.__digestRunning = due.length;
-    navHistory();
-    for (const s of due) {
-      try {
-        await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(s.id)}/run`);
-        runs[s.id] = now;
-      } catch { /* try again next open */ }
-      window.__digestRunning = Math.max(0, (window.__digestRunning ?? 1) - 1);
-    }
-    await saveRuns(runs);
-    window.__digestRunning = 0;
-    navHistory(); // re-render: banner gone, new entry present
+      // Jump to History with a "running" banner FIRST, so it feels instant; the digest
+      // (network fetch) then fills in and we refresh History to show the result.
+      window.__digestRunning = due.length;
+      navHistory();
+      for (const s of due) {
+        try {
+          await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(s.id)}/run`);
+          runs[s.id] = now;
+        } catch { /* try again next open */ }
+        window.__digestRunning = Math.max(0, (window.__digestRunning ?? 1) - 1);
+      }
+      await saveRuns(runs);
+      window.__digestRunning = 0;
+      navHistory(); // re-render: banner gone, new entry present
+    });
   } finally {
     catchingUp = false;
   }
@@ -231,12 +244,14 @@ async function runDueSchedules(): Promise<void> {
 /** Baseline lastRun=now for brand-new schedules so catch-up doesn't fire for times
  * that already passed before the schedule existed. */
 async function baselineNewSchedules(): Promise<void> {
-  const { fs, paths } = await platformP;
-  const scheds = await loadSchedules(fs, paths);
-  const runs = await loadRuns();
-  let changed = false;
-  for (const s of scheds) if (s.enabled && !(s.id in runs)) { runs[s.id] = Date.now(); changed = true; }
-  if (changed) await saveRuns(runs);
+  await withRunsLock(async () => {
+    const { fs, paths } = await platformP;
+    const scheds = await loadSchedules(fs, paths);
+    const runs = await loadRuns();
+    let changed = false;
+    for (const s of scheds) if (s.enabled && !(s.id in runs)) { runs[s.id] = Date.now(); changed = true; }
+    if (changed) await saveRuns(runs);
+  });
 }
 
 async function buildContext(): Promise<AppContext> {
@@ -286,13 +301,18 @@ if (IS_MOBILE) {
   // window stays hidden — run that digest (delivering to its channels) and exit.
   ready.then(async (ctx) => {
     const taskId = await invoke<string | null>("pending_scheduled_run").catch(() => null);
-    if (taskId) {
-      try {
-        await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(taskId)}/run`);
-      } catch { /* best effort — nothing to show, we're headless */ }
-      await invoke("exit_app").catch(() => {});
-    }
-  }).catch(() => {});
+    if (!taskId) return;
+    try {
+      await handle(ctx, "POST", `/api/schedules/${encodeURIComponent(taskId)}/run`);
+    } catch { /* best effort — nothing to show, we're headless */ }
+    finally { await invoke("exit_app").catch(() => {}); } // never leak the hidden process
+  }).catch(async () => {
+    // Context init itself failed. If this was a headless scheduled launch we must
+    // still exit, or the invisible window lingers forever (the Rust watchdog is the
+    // final backstop). A normal launch keeps its now-visible window.
+    const taskId = await invoke<string | null>("pending_scheduled_run").catch(() => null);
+    if (taskId) await invoke("exit_app").catch(() => {});
+  });
 }
 
 declare global {

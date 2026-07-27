@@ -21,7 +21,7 @@ import {
 import type {
   Digest, DigestEvent, ETFComposition, Finding, Holding, NewsItem, Plan, PriceSnapshot, Subject,
 } from "./models.ts";
-import { eventDedupKey, holdingKey, subjectKey } from "./models.ts";
+import { aggregateHoldings, eventDedupKey, holdingKey, subjectKey } from "./models.ts";
 import { analysePlan } from "./planAlign.ts";
 import type { FileSystem, HttpClient, Paths } from "./platform.ts";
 import { pyFormat } from "./round.ts";
@@ -36,7 +36,7 @@ import { computeWeights } from "./weights.ts";
 export interface IngestFns {
   fetchPrices(tickers: string[]): Promise<Record<string, PriceSnapshot>>;
   fetchNews(
-    subjects: Subject[], lookbackDays: number, sources: NewsSource[],
+    subjects: Subject[], lookbackDays: number, sources: NewsSource[], persist?: boolean,
   ): Promise<Record<string, NewsItem[]>>;
   getComposition(ticker: string, isin: string): Promise<ETFComposition | null>;
 }
@@ -68,8 +68,8 @@ function defaultIngest(deps: PipelineDeps): IngestFns {
   const { http, store, fs, paths } = deps;
   return {
     fetchPrices: (tickers) => fetchPrices(tickers, http, store),
-    fetchNews: (subjects, lookbackDays, sources) =>
-      fetchNewsForSubjects(subjects, lookbackDays, http, store, sources),
+    fetchNews: (subjects, lookbackDays, sources, persist) =>
+      fetchNewsForSubjects(subjects, lookbackDays, http, store, sources, persist),
     getComposition: (ticker, isin) => getComposition(ticker, isin, { paths, fs, http }),
   };
 }
@@ -168,7 +168,11 @@ export async function runDigest(deps: PipelineDeps, opts: RunDigestOptions = {})
     ...heldPrices,
     ...(watchTickers.length ? await ingest.fetchPrices(watchTickers) : {}),
   };
-  const newsBySubject = await ingest.fetchNews(subjects, plan.thresholds.news_lookback_days, newsSources);
+  // Only a delivering run consumes news from the dedup store; a preview reads it
+  // read-only so it can't starve the later scheduled/delivered digest.
+  const newsBySubject = await ingest.fetchNews(
+    subjects, plan.thresholds.news_lookback_days, newsSources, deliverOutput,
+  );
   const nNews = Object.values(newsBySubject).reduce((a, v) => a + v.length, 0);
 
   // 3. Score into events (deterministic).
@@ -314,7 +318,9 @@ export function pyIsoUtc(d: Date): string {
 
 /** Mirrors ingest/holdings.load_all_holdings — holdings + a provenance note. */
 async function loadHoldingsFor(deps: PipelineDeps): Promise<[Holding[], string[]]> {
-  const holdings = await loadHoldings(deps.fs, deps.paths);
+  // Merge duplicate-ticker rows up front so every downstream weight/look-through
+  // computation keys on one row per ticker.
+  const holdings = aggregateHoldings(await loadHoldings(deps.fs, deps.paths));
   const note = holdings.length ? `manual entry: ${holdings.length} positions` : "manual entry: none";
   return [holdings, [note]];
 }

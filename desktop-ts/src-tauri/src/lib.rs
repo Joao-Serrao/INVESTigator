@@ -57,7 +57,10 @@ fn send_email_blocking(cfg: SmtpConfig, subject: String, body: String) -> Result
 
     let mut transport = SmtpTransport::starttls_relay(&cfg.host)
         .map_err(|e| e.to_string())?
-        .port(cfg.port.unwrap_or(587));
+        .port(cfg.port.unwrap_or(587))
+        // Fail fast instead of pinning a headless scheduled run until the task's
+        // 1-hour ExecutionTimeLimit if the SMTP host is unreachable.
+        .timeout(Some(std::time::Duration::from_secs(20)));
     if let Some(user) = cfg.user.filter(|u| !u.is_empty()) {
         let password = cfg.password.unwrap_or_default().replace(' ', "");
         transport = transport.credentials(Credentials::new(user, password));
@@ -81,8 +84,16 @@ fn exit_app(app: tauri::AppHandle) {
 }
 
 /// Register each enabled schedule as a Windows scheduled task (Windows only).
+/// Async + spawn_blocking because it shells out to `schtasks` (a `/Query` can take
+/// seconds on a busy machine) — a sync command body would freeze the WebView.
 #[tauri::command]
-fn sync_schedules() -> serde_json::Value {
+async fn sync_schedules() -> serde_json::Value {
+    tauri::async_runtime::spawn_blocking(sync_schedules_blocking)
+        .await
+        .unwrap_or_else(|e| serde_json::json!({ "ok": false, "error": e.to_string(), "results": [] }))
+}
+
+fn sync_schedules_blocking() -> serde_json::Value {
     #[cfg(windows)]
     {
         windows_sched::sync()
@@ -131,6 +142,13 @@ mod windows_sched {
         true
     }
 
+    /// The id becomes a task name and a temp filename, so reject anything that isn't
+    /// a plain token (defends against a hand-edited/imported schedules.json carrying
+    /// e.g. `a/../../evil`). Legit ids are 12 hex chars.
+    fn safe_id(id: &str) -> bool {
+        !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric())
+    }
+
     pub fn sync() -> serde_json::Value {
         let path = match std::env::var("APPDATA") {
             Ok(a) => Path::new(&a).join("Investraton").join("config").join("schedules.json"),
@@ -147,7 +165,7 @@ mod windows_sched {
         let mut results = Vec::new();
         let mut wanted: HashSet<String> = HashSet::new();
         for s in &scheds {
-            if !s.enabled || s.id.is_empty() {
+            if !s.enabled || !safe_id(&s.id) {
                 continue;
             }
             let task = format!("{PREFIX}\\{}", s.id);
@@ -181,16 +199,22 @@ mod windows_sched {
         matches!(out, Ok(o) if o.status.success())
     }
 
+    /// Task names we own, via CSV (`/FO CSV /NH`) whose first column is the full
+    /// task path. Parsing the CSV column is locale-independent — the old `/FO LIST`
+    /// keyed off the label "TaskName:", which is localized and so silently returned
+    /// nothing on non-English Windows (leaving deleted schedules' tasks firing).
     fn list_tasks() -> Vec<String> {
         let mut names = Vec::new();
         if let Ok(o) = Command::new("schtasks")
-            .args(["/Query", "/FO", "LIST"])
+            .args(["/Query", "/FO", "CSV", "/NH"])
             .creation_flags(NO_WINDOW)
             .output()
         {
             for line in String::from_utf8_lossy(&o.stdout).lines() {
-                if let Some(rest) = line.strip_prefix("TaskName:") {
-                    names.push(rest.trim().trim_start_matches('\\').to_string());
+                // First column is the quoted task path, e.g. "\INVESTigator\abc123".
+                let rest = line.strip_prefix('"').unwrap_or(line);
+                if let Some(end) = rest.find('"') {
+                    names.push(rest[..end].trim_start_matches('\\').to_string());
                 }
             }
         }
@@ -284,6 +308,16 @@ pub fn run() {
                 if let Some(w) = app.get_webview_window("main") {
                     let _ = w.show();
                 }
+            } else {
+                // Backstop: a headless run whose frontend never reaches exit_app
+                // (e.g. DB init rejected) must not linger as an invisible process
+                // holding a DB handle. Force-exit after a generous ceiling; a normal
+                // scheduled digest finishes and calls exit_app in seconds.
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(300));
+                    handle.exit(1);
+                });
             }
             Ok(())
         })

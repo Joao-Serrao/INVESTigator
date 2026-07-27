@@ -128,25 +128,39 @@ function toItems(
   return out;
 }
 
-/** Return { subjectKey: [newly-seen items] } within the lookback window. */
+/** Return { subjectKey: [newly-seen items] } within the lookback window.
+ *
+ * `persist` controls whether newly-seen items are written to the dedup store.
+ * A delivering run persists (so the same headline isn't re-reported later); a
+ * non-delivering PREVIEW must NOT — otherwise opening the app marks every current
+ * headline seen and the later scheduled/delivered run finds nothing new to send.
+ * When not persisting we still read the store (so preview shows the same "new" set
+ * a delivery would) and dedup within this fetch, but leave the DB untouched. */
 export async function fetchNewsForSubjects(
   subjects: Subject[],
   lookbackDays: number,
   http: HttpClient,
   store: Store,
   sources: NewsSource[] = [],
+  persist = true,
 ): Promise<Record<string, NewsItem[]>> {
   const cutoff = Date.now() - lookbackDays * 86_400_000;
   const domains = sources.filter((s) => s.type === "domain" && s.value).map((s) => s.value);
   const feeds = sources.filter((s) => s.type === "rss" && s.value);
   const results: Record<string, NewsItem[]> = {};
+  const seenThisRun = new Set<string>();
 
   const push = async (key: string, items: NewsItem[]) => {
     for (const it of items) {
-      const isNew = await store.saveNews({
-        dedup_key: dedupKey(it), ticker: it.ticker, title: it.title, url: it.url,
-        source: it.source, published: null, summary: it.summary,
-      });
+      const dk = dedupKey(it);
+      if (seenThisRun.has(dk)) continue; // same item across sources/subjects -> once
+      seenThisRun.add(dk);
+      const isNew = persist
+        ? await store.saveNews({
+            dedup_key: dk, ticker: it.ticker, title: it.title, url: it.url,
+            source: it.source, published: null, summary: it.summary,
+          })
+        : !(await store.hasNews(dk));
       if (isNew) (results[key] ??= []).push(it);
     }
   };

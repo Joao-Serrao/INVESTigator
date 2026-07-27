@@ -62,7 +62,7 @@ export function templateNarrative(digest: Digest, summary = ""): string {
     ? `Portfolio ≈ €${pyThousands(digest.portfolio_total_eur)}`
     : "Amounts not set";
   const out: string[] = [
-    `# Investraton — ${pyTitle(digest.period)} Digest`,
+    `# INVESTigator — ${pyTitle(digest.period)} Digest`,
     `_Generated ${fmtGenerated(digest.generated_at)} · ${value} · ${digest.data_freshness}_`,
     "",
   ];

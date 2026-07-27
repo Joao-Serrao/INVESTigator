@@ -21,10 +21,12 @@ export const COMPLEXITY_PRESETS: Record<string, Complexity> = {
 };
 
 export function getComplexity(name: string | null | undefined, planMinUrgency: number): Complexity {
-  let preset = COMPLEXITY_PRESETS[(name || "standard").toLowerCase()];
+  const norm = (name || "standard").toLowerCase();
+  let preset = COMPLEXITY_PRESETS[norm];
   if (!preset) preset = COMPLEXITY_PRESETS["standard"];
-  // The plan's own threshold acts as a floor for 'standard' so user tuning still bites.
-  if (name === null || name === undefined || name === "" || name === "standard") {
+  // The plan's own threshold acts as a floor for 'standard' so user tuning still
+  // bites — keyed off the normalised name so "Standard"/"STANDARD" also apply it.
+  if (norm === "standard") {
     preset = { ...preset, min_urgency: Math.max(preset.min_urgency, planMinUrgency) };
   }
   return preset;

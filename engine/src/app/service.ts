@@ -20,7 +20,7 @@ import {
   analyseStructure, prefetchCompositions, runDigest, serializeDigest, type IngestFns,
 } from "../pipeline.ts";
 import type { Exposure, Holding, Plan } from "../models.ts";
-import { makeHolding } from "../models.ts";
+import { aggregateHoldings, makeHolding } from "../models.ts";
 import type { FileSystem, HttpClient, Paths } from "../platform.ts";
 import { pyRound } from "../round.ts";
 import { applyCurrentValues } from "../valuation.ts";
@@ -82,7 +82,7 @@ export async function getStatus(ctx: AppContext) {
 
 // ---------------------------------------------------------------- holdings
 export async function getHoldings(ctx: AppContext) {
-  const holdings = await loadHoldings(ctx.fs, ctx.paths);
+  const holdings = aggregateHoldings(await loadHoldings(ctx.fs, ctx.paths));
   const tickers = holdings.filter((h) => h.ticker).map((h) => h.ticker);
   applyCurrentValues(holdings, await cachedPrices(tickers, ctx.store), await ctx.store.allValueBasis());
   computeWeights(holdings);
@@ -118,6 +118,9 @@ export async function putHoldings(ctx: AppContext, rows: HoldingIn[]) {
       isin: (r.isin ?? "").trim(),
     }));
   await saveHoldings(ctx.fs, ctx.paths, holdings);
+  // Forget the value-tracking basis of any ticker no longer held, so re-adding it
+  // later re-anchors to today's price instead of a stale reference.
+  await ctx.store.pruneValueBasis(holdings.map((h) => h.ticker));
   return { saved: rows.length };
 }
 
@@ -197,7 +200,7 @@ export async function putSettings(ctx: AppContext, incoming: Record<string, unkn
 
 // ---------------------------------------------------------------- structure
 export async function getStructure(ctx: AppContext) {
-  const holdings = await loadHoldings(ctx.fs, ctx.paths);
+  const holdings = aggregateHoldings(await loadHoldings(ctx.fs, ctx.paths));
   if (!holdings.length) throw new NotFound("No holdings. Add positions first.");
   const tickers = holdings.filter((h) => h.ticker).map((h) => h.ticker);
   applyCurrentValues(holdings, await cachedPrices(tickers, ctx.store), await ctx.store.allValueBasis());
@@ -386,11 +389,19 @@ export async function syncSchedules(ctx: AppContext) {
 export async function runSchedule(ctx: AppContext, id: string) {
   const sched = (await loadSchedules(ctx.fs, ctx.paths)).find((s) => s.id === id);
   if (!sched) throw new NotFound(`No schedule with id ${id}`);
+  return runScheduleAdhoc(ctx, sched);
+}
+
+/** Run a digest from a schedule object passed inline, WITHOUT saving it or
+ * re-registering OS tasks/reminders — the "Run now" button uses this so previewing
+ * a run doesn't silently persist an unsaved (or edited) schedule. */
+export async function runScheduleAdhoc(ctx: AppContext, sched: Partial<Schedule>) {
+  const s = normaliseSchedule(sched);
   const digest = await runDigest(await deps(ctx), {
-    period: sched.frequency, deliverOutput: true, focus: sched.focus,
-    complexity: sched.complexity,
-    deliveryOverride: sched.delivery.length ? sched.delivery : null,
-    skipIfEmpty: sched.skip_if_empty,
+    period: s.frequency, deliverOutput: true, focus: s.focus,
+    complexity: s.complexity,
+    deliveryOverride: s.delivery.length ? s.delivery : null,
+    skipIfEmpty: s.skip_if_empty,
   });
   return serializeDigest(digest);
 }

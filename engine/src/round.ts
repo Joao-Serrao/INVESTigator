@@ -29,9 +29,13 @@ export function pyFormat(x: number, digits: number): string {
   return pyRound(x, digits).toFixed(digits);
 }
 
-/** Equivalent of Python's f"{x:,.0f}". */
+/** Equivalent of Python's f"{x:,.0f}". Grouping is done manually rather than via
+ * toLocaleString so it doesn't depend on the JS runtime shipping full ICU (a
+ * `-small-icu`/no-ICU Android WebView would otherwise drop the thousands commas). */
 export function pyThousands(x: number): string {
-  return pyRound(x, 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
+  const r = pyRound(x, 0);
+  const grouped = Math.abs(r).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return r < 0 ? `-${grouped}` : grouped;
 }
 
 /** Equivalent of Python's str(float): whole values keep a trailing ".0"

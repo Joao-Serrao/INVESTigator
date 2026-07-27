@@ -23,7 +23,7 @@
     { "identifier": "fs:allow-exists", "allow": [{ "path": "$DATA/Investraton/**" }, { "path": "$RESOURCE/**" }] },
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://**" }, { "url": "http://**" }]
+      "allow": [{ "url": "https://**" }]
     }
   ]
 }

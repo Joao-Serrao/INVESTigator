@@ -86,19 +86,20 @@ async function sendConsole(digest: Digest, ctx: DeliverContext): Promise<void> {
 
 async function sendDiscord(digest: Digest, settings: Settings, ctx: DeliverContext): Promise<void> {
   const url = settings.discord_webhook_url;
-  if (!url) return; // selected but unconfigured -> no-op, like the Python version
+  // Selected but unconfigured -> surface it in the report instead of a false "ok".
+  if (!url) throw new Error("Discord webhook not configured");
   for (const chunk of chunkDiscord(digest.narrative, DISCORD_MAX)) {
     const res = await ctx.http.post(url, { content: chunk });
     if (!res.ok) throw new Error(`Discord HTTP ${res.status}`);
   }
 }
 
-/** `Investraton — {Period} Digest (YYYY-MM-DD)` from generated_at (UTC). */
+/** `INVESTigator — {Period} Digest (YYYY-MM-DD)` from generated_at (UTC). */
 export function emailSubject(digest: Digest): string {
   const d = digest.generated_at;
   const p = (n: number, w = 2) => String(n).padStart(w, "0");
   const date = `${p(d.getUTCFullYear(), 4)}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
-  return `Investraton — ${pyTitle(digest.period)} Digest (${date})`;
+  return `INVESTigator — ${pyTitle(digest.period)} Digest (${date})`;
 }
 
 async function sendEmail(digest: Digest, settings: Settings, ctx: DeliverContext): Promise<void> {
@@ -135,9 +136,9 @@ export async function deliver(
   return report;
 }
 
-const TEST_SUBJECT = "Investraton — test email ✅";
+const TEST_SUBJECT = "INVESTigator — test email ✅";
 const TEST_BODY =
-  "This is a test from Investraton. If you received it, your email delivery is working.\n" +
+  "This is a test from INVESTigator. If you received it, your email delivery is working.\n" +
   "You can now set Email as a delivery channel for your digests.";
 
 /** Send a test email; throws on failure (drives the 'Send test email' button). */

@@ -191,11 +191,18 @@ export interface Schedule {
 export const FREQUENCIES = ["daily", "every_3_days", "weekly", "monthly"];
 export const COMPLEXITIES = ["simple", "standard", "complex", "urgent", "none"];
 
+/** A schedule id becomes a Windows task name (`\INVESTigator\<id>`) and a temp XML
+ * filename, so it must stay a plain token — an imported/backup bundle could carry
+ * `a/../../evil`. Accept only short alphanumerics (newId() emits 12 hex chars);
+ * anything else is dropped so putSchedule re-mints a clean id. */
+const sanitizeSchedId = (id: unknown): string =>
+  /^[A-Za-z0-9]{1,64}$/.test(String(id ?? "")) ? String(id) : "";
+
 /** Mirrors scheduler._normalise(). */
 export function normaliseSchedule(s: any): Schedule {
   const freq = s.frequency ?? "weekly";
   return {
-    id: s.id ?? "",
+    id: sanitizeSchedId(s.id),
     name: s.name ?? "Digest",
     frequency: FREQUENCIES.includes(freq) ? freq : "weekly",
     time: s.time ?? "08:00",

@@ -135,6 +135,29 @@ export interface Plan {
 /** Holding.key — ticker upper-cased. */
 export const holdingKey = (h: Holding): string => h.ticker.toUpperCase();
 
+/** Merge positions that share a ticker into one (the same fund held across two
+ * brokers — e.g. Degiro + XTB — is two manual rows). Amounts sum; avg_cost is
+ * amount-weighted; the first-seen name/type/tag/isin wins. Order is preserved and
+ * a duplicate-free list passes through unchanged, so every computation keys on a
+ * single row per ticker (otherwise weights double-count and sum past 100%). */
+export function aggregateHoldings(holdings: Holding[]): Holding[] {
+  const byKey = new Map<string, Holding>();
+  for (const h of holdings) {
+    const k = holdingKey(h);
+    const cur = byKey.get(k);
+    if (!cur) { byKey.set(k, { ...h }); continue; }
+    const sum = cur.amount_invested_eur + h.amount_invested_eur;
+    cur.avg_cost = sum > 0
+      ? (cur.avg_cost * cur.amount_invested_eur + h.avg_cost * h.amount_invested_eur) / sum
+      : (cur.avg_cost || h.avg_cost);
+    cur.amount_invested_eur = sum;
+    if (!cur.name) cur.name = h.name;
+    if (!cur.isin) cur.isin = h.isin;
+    if (!cur.strategy_tag) cur.strategy_tag = h.strategy_tag;
+  }
+  return [...byKey.values()];
+}
+
 /** Subject.key — ticker if present, else the name; upper-cased. */
 export const subjectKey = (s: Subject): string => (s.ticker || s.name).toUpperCase();
 

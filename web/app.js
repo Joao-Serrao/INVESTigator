@@ -13,6 +13,10 @@ const api = {
 };
 const pct = (x) => (x * 100).toFixed(x >= 0.1 ? 1 : 2) + '%';
 const esc = (s) => (s ?? '').toString().replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// Only http(s) URLs may become a clickable href — a news/RSS item with a
+// `javascript:` (or other) scheme is otherwise executed on click. Returns '' for
+// anything else, so the caller renders plain text instead of an anchor.
+const safeUrl = (u) => /^https?:\/\//i.test(String(u ?? '')) ? String(u) : '';
 const tip = (t) => `<span class="tip" data-tip="${esc(t)}">i</span>`;
 
 // External links can't open with target=_blank inside the webview; route them
@@ -79,13 +83,14 @@ function bars(items, max) {
 function eventCard(e, radar = false) {
   const sevClass = radar ? 'radar' : e.severity;
   const badge = `<span class="badge ${sevClass}">${radar ? 'radar' : e.severity}</span>`;
-  const src = e.url ? `<span class="evt-src">open ↗</span>` : '';
+  const u = safeUrl(e.url);
+  const src = u ? `<span class="evt-src">open ↗</span>` : '';
   const inner = `<div class="evt-top">${badge}<span class="evt-tkr">${esc(e.ticker)}</span>
       <span class="muted small">urgency ${e.urgency}</span>${src}</div>
     <div class="evt-head">${esc(e.headline)}</div>
     <div class="evt-why">${esc(e.explanation)}</div>`;
-  return e.url
-    ? `<a class="evt" href="${esc(e.url)}" target="_blank" rel="noopener">${inner}</a>`
+  return u
+    ? `<a class="evt" href="${esc(u)}" target="_blank" rel="noopener">${inner}</a>`
     : `<div class="evt">${inner}</div>`;
 }
 
@@ -399,8 +404,10 @@ async function persistSchedule(i) {
 async function runScheduleNow(i, btn) {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
   try {
-    const s = await persistSchedule(i);
-    const d = await api.post(`/api/schedules/${s.id}/run`);
+    // Run the CURRENT (possibly unsaved) row as-is — no persist, no task/reminder
+    // re-arm — so previewing a run never breaks the manual-save contract.
+    const s = scheds[i];
+    const d = await api.post('/api/schedules/run-now', s);
     const rep = d.delivery_report || [];
     const sent = rep.map(r => r.ok ? `✓ ${r.channel}` : `✗ ${r.channel}: ${r.error}`).join('\n');
     const anyFail = rep.some(r => !r.ok);

@@ -12,12 +12,23 @@ import { DatabaseSync } from "node:sqlite";
 import type { Database, FileSystem, HttpClient, Paths, Row } from "../platform.ts";
 import { UA } from "../platform.ts";
 
+/** Per-request timeout so a single unresponsive feed/price endpoint can't hang the
+ * whole (sequential) digest run. */
+const HTTP_TIMEOUT_MS = 15_000;
+
+/** fetch() with an AbortController timeout. */
+function fetchT(url: string, init: RequestInit = {}): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), HTTP_TIMEOUT_MS);
+  return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+
 /** Node HTTP via global fetch. The Tauri adapter will use tauri-plugin-http,
  * which issues requests natively and therefore bypasses CORS. */
 export const nodeHttp: HttpClient = {
   async getText(url, headers = {}) {
     try {
-      const r = await fetch(url, { headers: { "User-Agent": UA, ...headers } });
+      const r = await fetchT(url, { headers: { "User-Agent": UA, ...headers } });
       if (!r.ok) return null;
       return await r.text();
     } catch {
@@ -26,7 +37,7 @@ export const nodeHttp: HttpClient = {
   },
   async getJson<T = unknown>(url: string, headers: Record<string, string> = {}) {
     try {
-      const r = await fetch(url, { headers: { "User-Agent": UA, ...headers } });
+      const r = await fetchT(url, { headers: { "User-Agent": UA, ...headers } });
       if (!r.ok) return null;
       return (await r.json()) as T;
     } catch {
@@ -37,7 +48,7 @@ export const nodeHttp: HttpClient = {
     url: string, body: unknown, headers: Record<string, string> = {},
   ) {
     try {
-      const r = await fetch(url, {
+      const r = await fetchT(url, {
         method: "POST",
         headers: { "User-Agent": UA, "content-type": "application/json", ...headers },
         body: JSON.stringify(body),
@@ -50,7 +61,7 @@ export const nodeHttp: HttpClient = {
   },
   async post(url: string, body: unknown, headers: Record<string, string> = {}) {
     try {
-      const r = await fetch(url, {
+      const r = await fetchT(url, {
         method: "POST",
         headers: { "User-Agent": UA, "content-type": "application/json", ...headers },
         body: JSON.stringify(body),

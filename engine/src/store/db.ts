@@ -167,6 +167,18 @@ export class Store {
     );
   }
 
+  /** Drop basis rows for tickers no longer held, so re-adding a position later
+   * re-anchors to the current price instead of reusing a months-old reference. */
+  async pruneValueBasis(keepTickers: string[]): Promise<void> {
+    const keep = new Set(keepTickers.map((t) => t.toUpperCase()));
+    const rows = await this.db.select<{ ticker: string }>("SELECT ticker FROM value_tracking");
+    for (const r of rows) {
+      if (!keep.has(r.ticker)) {
+        await this.db.execute("DELETE FROM value_tracking WHERE ticker=?", [r.ticker]);
+      }
+    }
+  }
+
   // ---- digest history ----
   async saveDigest(meta: {
     period: string; focus: string; complexity: string;

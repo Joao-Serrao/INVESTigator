@@ -47,10 +47,22 @@ export const tauriFs: FileSystem = {
   },
 };
 
+/** Per-request timeout so one unresponsive feed/price endpoint can't hang the
+ * whole (sequential) digest — matches the Node adapter. `connectTimeout` covers a
+ * stalled connect; the AbortController covers a stalled response body. */
+const HTTP_TIMEOUT_MS = 15_000;
+
+function fetchT(url: string, init: Record<string, unknown> = {}): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), HTTP_TIMEOUT_MS);
+  return tauriFetch(url, { ...init, signal: ctrl.signal, connectTimeout: HTTP_TIMEOUT_MS })
+    .finally(() => clearTimeout(timer));
+}
+
 export const tauriHttp: HttpClient = {
   async getText(url, headers = {}) {
     try {
-      const r = await tauriFetch(url, { headers: { "User-Agent": UA, ...headers } });
+      const r = await fetchT(url, { headers: { "User-Agent": UA, ...headers } });
       if (!r.ok) return null;
       return await r.text();
     } catch {
@@ -59,7 +71,7 @@ export const tauriHttp: HttpClient = {
   },
   async getJson<T = unknown>(url: string, headers: Record<string, string> = {}) {
     try {
-      const r = await tauriFetch(url, { headers: { "User-Agent": UA, ...headers } });
+      const r = await fetchT(url, { headers: { "User-Agent": UA, ...headers } });
       if (!r.ok) return null;
       return (await r.json()) as T;
     } catch {
@@ -68,7 +80,7 @@ export const tauriHttp: HttpClient = {
   },
   async postJson<T = unknown>(url: string, body: unknown, headers: Record<string, string> = {}) {
     try {
-      const r = await tauriFetch(url, {
+      const r = await fetchT(url, {
         method: "POST",
         headers: { "User-Agent": UA, "content-type": "application/json", ...headers },
         body: JSON.stringify(body),
@@ -81,7 +93,7 @@ export const tauriHttp: HttpClient = {
   },
   async post(url: string, body: unknown, headers: Record<string, string> = {}): Promise<HttpResponse> {
     try {
-      const r = await tauriFetch(url, {
+      const r = await fetchT(url, {
         method: "POST",
         headers: { "User-Agent": UA, "content-type": "application/json", ...headers },
         body: JSON.stringify(body),
@@ -130,6 +142,14 @@ export async function makeTauriPlatform(): Promise<TauriPlatform> {
   await tauriFs.mkdirp(tauriFs.join(home, "config"));
   const dbFile = tauriFs.join(home, "data", "investraton.db");
   const db = await Database.load(`sqlite:${dbFile}`);
+  // A scheduled `run-schedule` can fire while the app is already open — two
+  // processes, two connections to the same file. WAL (persistent, file-level) lets
+  // a reader and a writer coexist, and busy_timeout makes a would-be writer wait
+  // rather than immediately throwing SQLITE_BUSY and losing the digest.
+  try {
+    await db.select("PRAGMA journal_mode=WAL;");
+    await db.select("PRAGMA busy_timeout=5000;");
+  } catch { /* best-effort; the app still works in the default rollback-journal mode */ }
   return {
     fs: tauriFs,
     http: tauriHttp,
