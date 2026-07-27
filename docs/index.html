@@ -21,6 +21,15 @@
   .shots figure{margin:0}
   .shots img{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:11px}
   .shots figcaption{color:var(--muted);font-size:13px;margin-top:7px}
+  .phone-shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,200px));gap:18px;
+    justify-content:center;margin-top:22px}
+  .phone-shots figure{margin:0}
+  .phone-shots img{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:18px}
+  .phone-shots figcaption{color:var(--muted);font-size:12.5px;margin-top:8px;text-align:center}
+  .callout{background:rgba(79,140,255,.07);border:1px solid rgba(79,140,255,.3);border-radius:12px;
+    padding:16px 18px;color:var(--muted);font-size:14.5px;margin-top:6px}
+  .callout b{color:var(--text)}
+  .btn.android{background:var(--teal);border-color:var(--teal);color:#04211a}
   h1{font-size:clamp(38px,7vw,60px);margin:16px 0 8px;letter-spacing:-1.5px}
   .tag{color:var(--muted);font-size:clamp(16px,2.4vw,19px);max-width:640px;margin:0 auto}
   .grad{background:linear-gradient(90deg,var(--blue),var(--teal));-webkit-background-clip:text;
@@ -54,17 +63,19 @@
   <header>
     <img class="logo" src="icon.png" alt="INVESTigator icon" />
     <h1>INVEST<span class="grad">igator</span></h1>
-    <p class="tag">A personal investment intelligence desktop app — a <b>context amplifier</b> for your
-      own thinking, not a trading assistant. It never tells you to buy or sell.</p>
+    <p class="tag">A personal investment intelligence app for <b>desktop &amp; Android</b> — a
+      <b>context amplifier</b> for your own thinking, not a trading assistant. It never tells you to
+      buy or sell.</p>
     <div class="cta">
       <a class="btn primary" href="https://github.com/Joao-Serrao/INVESTigator/releases">Download for Windows</a>
+      <a class="btn android" href="https://github.com/Joao-Serrao/INVESTigator/releases">Download for Android (APK)</a>
       <a class="btn" href="https://github.com/Joao-Serrao/INVESTigator">View on GitHub</a>
       <a class="btn coffee" href="https://buymeacoffee.com/joao.serrao">☕ Buy me a coffee</a>
     </div>
     <p class="note">Free &amp; open source · MIT · your data never leaves your machine</p>
     <img class="shot" src="screenshots/dashboard.png"
          alt="INVESTigator dashboard showing effective exposure after ETF look-through" />
-    <p class="note">Screenshots use demo data.</p>
+    <p class="note">This screenshot uses demo data.</p>
   </header>
 
   <section>
@@ -80,8 +91,9 @@
         <em>your</em> capital, deduplicated and capped so one busy stock can't flood the digest.</p></div>
       <div class="card"><h3>🧭 Plan drift</h3><p>Your real allocation versus the targets you set, so you know
         where the next contribution is needed.</p></div>
-      <div class="card"><h3>⏰ Automatic digests</h3><p>Multiple schedules with their own frequency, depth and
-        focus. Delivered to console, Discord or email. Missed runs fire on next power-on.</p></div>
+      <div class="card"><h3>⏰ Automatic digests</h3><p>Multiple schedules, each with its own frequency, depth
+        and focus. On desktop they run automatically via Task Scheduler; on Android you tap a reminder to run.
+        Delivered to console, Discord or email.</p></div>
     </div>
   </section>
 
@@ -97,6 +109,32 @@
       <figure><img src="screenshots/history.png" alt="History" />
         <figcaption>History — every digest saved and re-openable.</figcaption></figure>
     </div>
+  </section>
+
+  <section>
+    <h2>On your phone (Android)</h2>
+    <p style="color:var(--muted)">The whole app runs on Android too — the <b>same</b> TypeScript engine in
+      a Tauri WebView, fully offline. Look-through, noise-filtered digests, history and delivery all work
+      exactly like desktop. There's one download button for the APK up top; install it, then use
+      <em>Settings → Backup &amp; transfer</em> to bring your portfolio over from desktop.</p>
+    <div class="phone-shots">
+      <figure><img src="screenshots/mobile-dashboard.png" alt="Mobile dashboard" />
+        <figcaption>Dashboard — your true exposure after ETF look-through.</figcaption></figure>
+      <figure><img src="screenshots/mobile-digest.png" alt="Mobile digest" />
+        <figcaption>Digest — what's moving, scored by how much it touches your capital.</figcaption></figure>
+      <figure><img src="screenshots/mobile-schedules.png" alt="Mobile schedules" />
+        <figcaption>Schedules — tap "Set phone reminders" to arm them.</figcaption></figure>
+      <figure><img src="screenshots/mobile-history.png" alt="Mobile history" />
+        <figcaption>History — every digest saved and re-openable.</figcaption></figure>
+    </div>
+    <div class="callout">
+      <b>Automation works differently on Android.</b> On desktop, Windows Task Scheduler runs your digests
+      <b>fully automatically</b> in the background — even with the app closed. Android forbids silent
+      background execution, so instead a <b>reminder notification fires at the scheduled time and you tap it
+      to run the digest</b> — one tap and it computes, delivers and saves. Missed reminders catch up the
+      next time you open the app. Everything else is identical to desktop.
+    </div>
+    <p class="note">The portfolio total in the digest screenshot is blurred; the rest is a real run.</p>
   </section>
 
   <section>

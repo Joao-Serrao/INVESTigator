@@ -65,7 +65,41 @@ figures or giving advice.
 </tr>
 </table>
 
-<sub>Screenshots use demo data.</sub>
+<sub>Desktop screenshots use demo data.</sub>
+
+## On your phone (Android)
+
+The whole app runs on Android too — the **exact same** TypeScript engine in a Tauri WebView, fully
+offline. Look-through, noise-filtered digests, history and delivery all work identically to desktop.
+**The one real difference is how automation fires** (see below).
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/mobile-dashboard.png" alt="Mobile dashboard" /><br/>
+<b>Dashboard</b> — your true exposure after ETF look-through, region/country/sector, on your phone.</td>
+<td width="50%"><img src="docs/screenshots/mobile-digest.png" alt="Mobile digest" /><br/>
+<b>Digest</b> — "what's moving", each item scored by how much it touches <em>your</em> capital.</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/mobile-schedules.png" alt="Mobile schedules" /><br/>
+<b>Schedules</b> — set a reminder per schedule; tap <em>Set phone reminders</em> to arm them.</td>
+<td width="50%"><img src="docs/screenshots/mobile-history.png" alt="Mobile history" /><br/>
+<b>History</b> — every digest saved and re-openable, same as desktop.</td>
+</tr>
+</table>
+
+<sub>The portfolio total in the digest screenshot is blurred; everything else is a real run.</sub>
+
+### Automation: fully automatic on desktop, one tap on Android
+
+| | Desktop (Windows) | Android |
+| --- | --- | --- |
+| **How a scheduled digest runs** | **Fully automatic** — Windows Task Scheduler fires it headless in the background, even with the app closed. | A **reminder notification** fires at the scheduled time and **you tap it to run the digest.** |
+| **Why** | A desktop process can run headless. | Android forbids silent background execution without a persistent foreground service, so the notification *is* the trigger — one tap runs, delivers, and saves it. |
+| **Missed runs** | Fire on next power-on. | Catch up automatically when you next open the app. |
+
+So on your phone a digest is always **one tap away**, never silent — by design. Everything else
+(the computation, delivery to Discord/email, and history) is identical to desktop.
 
 ## Design principles
 
@@ -126,6 +160,7 @@ npm run tauri -- android build --apk      # Android APK (see desktop-ts/README.m
 
 Build details: [desktop-ts/README.md](desktop-ts/README.md). How the engine was ported from an
 earlier Python implementation (and verified for exact output parity): [docs/PORTING.md](docs/PORTING.md).
+Cutting a release (version bump, installers, APK, tags, GitHub Pages): [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Data sources
 
