@@ -1,6 +1,6 @@
 [package]
 name = "investigator"
-version = "0.1.0"
+version = "1.0.0"
 description = "INVESTigator — personal investment intelligence (TypeScript engine)"
 authors = ["João Serrão"]
 edition = "2021"

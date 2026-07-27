@@ -1,6 +1,6 @@
 {
   "name": "@investigator/engine",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "INVESTigator intelligence engine (TypeScript) — pure, deterministic logic.",
   "type": "module",
   "private": true,
